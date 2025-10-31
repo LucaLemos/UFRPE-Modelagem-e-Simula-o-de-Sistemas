@@ -1,40 +1,40 @@
 import pygame
-from config import COLUNAS, LARGURA_COLUNA, LINHAS, ALTURA_LINHA, MARGEM, CINZA_ESCURO
+from config import GRID_COLUMNS, CELL_WIDTH, GRID_ROWS, CELL_HEIGHT, MARGIN, Colors
 
 class GridHelper:
     @staticmethod
-    def para_pixels(coluna, linha, largura_celulas=1, altura_celulas=1):
+    def grid_to_pixels(column: int, row: int, width_cells: int = 1, height_cells: int = 1) -> tuple:
         """Converte coordenadas do grid para pixels"""
-        x = coluna * LARGURA_COLUNA + MARGEM
-        y = linha * ALTURA_LINHA + MARGEM
-        largura = largura_celulas * LARGURA_COLUNA - MARGEM * 2
-        altura = altura_celulas * ALTURA_LINHA - MARGEM * 2
-        return x, y, largura, altura
+        x = column * CELL_WIDTH + MARGIN
+        y = row * CELL_HEIGHT + MARGIN
+        width = width_cells * CELL_WIDTH - MARGIN * 2
+        height = height_cells * CELL_HEIGHT - MARGIN * 2
+        return x, y, width, height
     
     @staticmethod
-    def centro_pixels(coluna, linha, largura_celulas=1, altura_celulas=1):
-        """Retorna o centro de uma célula/área do grid em pixels"""
-        x, y, largura, altura = GridHelper.para_pixels(coluna, linha, largura_celulas, altura_celulas)
-        return x + largura // 2, y + altura // 2
+    def grid_center(column: int, row: int, width_cells: int = 1, height_cells: int = 1) -> tuple:
+        """Retorna o centro de uma área do grid em pixels"""
+        x, y, width, height = GridHelper.grid_to_pixels(column, row, width_cells, height_cells)
+        return x + width // 2, y + height // 2
     
     @staticmethod
-    def desenhar_grid(tela):
-        """Desenha o grid de fundo (útil para debug)"""
+    def draw_grid(screen: pygame.Surface) -> None:
+        """Desenha o grid de fundo (para debug)"""
         # Linhas verticais
-        for coluna in range(COLUNAS + 1):
-            x = coluna * LARGURA_COLUNA
-            pygame.draw.line(tela, CINZA_ESCURO, (x, 0), (x, ALTURA_LINHA * LINHAS), 1)
+        for column in range(GRID_COLUMNS + 1):
+            x = column * CELL_WIDTH
+            pygame.draw.line(screen, Colors.DARK_GRAY, (x, 0), (x, CELL_HEIGHT * GRID_ROWS), 1)
         
         # Linhas horizontais
-        for linha in range(LINHAS + 1):
-            y = linha * ALTURA_LINHA
-            pygame.draw.line(tela, CINZA_ESCURO, (0, y), (LARGURA_COLUNA * COLUNAS, y), 1)
+        for row in range(GRID_ROWS + 1):
+            y = row * CELL_HEIGHT
+            pygame.draw.line(screen, Colors.DARK_GRAY, (0, y), (CELL_WIDTH * GRID_COLUMNS, y), 1)
         
-        # Números das colunas (debug)
-        fonte = pygame.font.SysFont(None, 16)
-        for coluna in range(COLUNAS):
-            for linha in range(LINHAS):
-                x = coluna * LARGURA_COLUNA + 5
-                y = linha * ALTURA_LINHA + 5
-                texto = fonte.render(f"{coluna},{linha}", True, CINZA_ESCURO)
-                tela.blit(texto, (x, y))
+        # Coordenadas (debug)
+        font = pygame.font.SysFont(None, 16)
+        for column in range(GRID_COLUMNS):
+            for row in range(GRID_ROWS):
+                x = column * CELL_WIDTH + 5
+                y = row * CELL_HEIGHT + 5
+                text = font.render(f"{column},{row}", True, Colors.DARK_GRAY)
+                screen.blit(text, (x, y))

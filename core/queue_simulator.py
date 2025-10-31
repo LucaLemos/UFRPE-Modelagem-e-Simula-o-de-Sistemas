@@ -1,168 +1,89 @@
 import pygame
-from entities.computador import Computador
-from entities.gerador import GeradorProcessos
-from entities.processo import Processo
+from typing import Dict, Any
+from config import Colors, GENERATION_FREQUENCIES
+from entities.generator import ProcessGenerator
+from entities.computer import Computer
+from entities.process_states import ProcessState
+from core.connection_system import ConnectionSystem
 from utils.grid_helper import GridHelper
-from config import FREQUENCIAS, BRANCO, AMARELO, VERDE, VERMELHO, CINZA, PRETO, POS_UI, POS_INSTRUCOES
 
 class QueueSimulator:
     def __init__(self):
-        self.computador = Computador()
-        self.gerador = GeradorProcessos()
-        self.processos = []
-        self.fila_espera = []  # Nova: processos aguardando na fila
-        self.proximo_id = 1
-        self.tempo_ultimo_processo = 0
+        # Componentes do sistema
+        self.generator = ProcessGenerator()
+        self.computer = Computer()
+        self.connection = ConnectionSystem(self.generator, self.computer)
         
-        self.frequencia_atual = 2
-        self.intervalo_geracao = FREQUENCIAS[self.frequencia_atual]["valor"]
-        self.geracao_automatica = True
-        
-        # Posições da fila baseadas no grid
-        self.fila_positions = self._calcular_posicoes_fila()
+        # Estado do simulador
+        self.processes = []
+        self.time_since_last_process = 0
+        self.current_frequency_index = 2  # Frequência padrão: Normal
+        self.is_auto_generation_enabled = True  # Sempre ativo
+        self.is_generator_blocked = False
     
-    def _calcular_posicoes_fila(self):
-        """Calcula as posições onde os processos ficam na fila"""
-        posicoes = []
-        coluna_inicio = 4  # Coluna onde começa a fila
-        linha = 4          # Linha da fila
-        
-        for i in range(5):  # 5 posições na fila
-            x, y = GridHelper.centro_pixels(coluna_inicio + i, linha)
-            posicoes.append((x, y))
-        
-        return posicoes
+    @property
+    def generation_interval(self) -> int:
+        return GENERATION_FREQUENCIES[self.current_frequency_index]["value"]
     
-    def obter_frequencia_atual(self):
-        return FREQUENCIAS[self.frequencia_atual]
+    def update(self) -> None:
+        """Atualiza o estado do simulador"""
+        # Geração automática (sempre ativa)
+        self._handle_auto_generation()
+        
+        # Atualizar bloqueio do gerador
+        self.is_generator_blocked = not self.connection.has_capacity
+        
+        # Atualizar sistema de conexão (controla todo o fluxo)
+        self.connection.update()
+        
+        # Verificar conclusão de processamento
+        if not self.computer.is_idle:
+            if self.computer.check_processing_complete():
+                print("CPU liberada - processo finalizado")
+        
+        # Limpar processos finalizados
+        self._cleanup_completed_processes()
     
-    def aumentar_frequencia(self):
-        if self.frequencia_atual < len(FREQUENCIAS) - 1:
-            self.frequencia_atual += 1
-            self.intervalo_geracao = FREQUENCIAS[self.frequencia_atual]["valor"]
+    def _handle_auto_generation(self) -> None:
+        """Gerencia a geração automática de processos"""
+        if self.connection.has_capacity:
+            self.time_since_last_process += 1
+            if self.time_since_last_process >= self.generation_interval:
+                process = self.generator.create_process()
+                self.processes.append(process)
+                if self.connection.add_process(process):
+                    print(f"Processo {process.id} criado automaticamente")
+                self.time_since_last_process = 0
     
-    def diminuir_frequencia(self):
-        if self.frequencia_atual > 0:
-            self.frequencia_atual -= 1
-            self.intervalo_geracao = FREQUENCIAS[self.frequencia_atual]["valor"]
+    def _cleanup_completed_processes(self) -> None:
+        """Remove processos finalizados do sistema"""
+        for process in self.processes[:]:
+            if not process.is_active and process.state != ProcessState.PROCESSING:
+                self.processes.remove(process)
+                print(f"Processo {process.id} removido do sistema")
     
-    def toggle_geracao_automatica(self):
-        self.geracao_automatica = not self.geracao_automatica
+    def draw(self, screen: pygame.Surface) -> None:
+        """Desenha todo o simulador"""
+        # Fundo
+        screen.fill(Colors.BLACK)
+        
+        # Grid (para debug)
+        GridHelper.draw_grid(screen)
+        
+        # Sistema de conexão (desenha linha e processos)
+        self.connection.draw(screen)
+        
+        # Componentes principais
+        self.generator.draw(screen)
+        self.computer.draw(screen)
+        
+        # Processo sendo processado (dentro da CPU)
+        self._draw_processing_process(screen)
     
-    def gerar_processo(self):
-        x, y = self.gerador.get_centro()
-        novo_processo = Processo(self.proximo_id, x, y)
-        self.processos.append(novo_processo)
-        self.fila_espera.append(novo_processo)  # Adiciona à fila
-        self.proximo_id += 1
-        return novo_processo
-    
-    def atualizar(self):
-        # Geração automática
-        if self.geracao_automatica:
-            self.tempo_ultimo_processo += 1
-            if self.tempo_ultimo_processo >= self.intervalo_geracao:
-                self.gerar_processo()
-                self.tempo_ultimo_processo = 0
-        
-        # Atualiza posições dos processos na fila
-        for i, processo in enumerate(self.fila_espera):
-            if i < len(self.fila_positions):
-                alvo_x, alvo_y = self.fila_positions[i]
-                processo.mover_para(alvo_x, alvo_y)
-                processo.em_fila = True
-        
-        # Move o primeiro da fila para a CPU se estiver ociosa
-        if self.fila_espera and self.computador.processor_ocioso:
-            processo = self.fila_espera.pop(0)
-            processo.em_fila = False
-        
-        # Processa movimento dos processos
-        for processo in self.processos[:]:
-            if processo.ativo:
-                if not processo.em_fila and processo.mover_para_computador(self.computador):
-                    self.computador.processor_ocioso = False
-                    processo.ativo = False
-            else:
-                self.processos.remove(processo)
-        
-        # Atualiza status da CPU
-        self.computador.processor_ocioso = len(self.fila_espera) == 0
-    
-    def desenhar(self, tela):
-        # Limpa a tela
-        tela.fill(PRETO)
-        
-        # Desenha grid (opcional - pode remover depois)
-        GridHelper.desenhar_grid(tela)
-        
-        # Desenha seta de conexão
-        gerador_x, gerador_y = self.gerador.get_centro()
-        computador_x, computador_y = self.computador.get_centro()
-        pygame.draw.line(tela, BRANCO, (gerador_x, gerador_y), (computador_x, computador_y), 3)
-        
-        # Desenha área da fila
-        self._desenhar_area_fila(tela)
-        
-        # Desenha componentes
-        self.gerador.desenhar(tela)
-        self.computador.desenhar(tela)
-        
-        # Desenha processos
-        for processo in self.processos:
-            processo.desenhar(tela)
-        
-        # Desenha UI
-        self._desenhar_ui(tela)
-    
-    def _desenhar_area_fila(self, tela):
-        """Desenha a área visual da fila de espera"""
-        if self.fila_positions:
-            # Desenha base da fila
-            primeira_x, primeira_y = self.fila_positions[0]
-            ultima_x, ultima_y = self.fila_positions[-1]
-            
-            pygame.draw.rect(tela, (40, 40, 40), 
-                           (primeira_x - 20, primeira_y - 25, 
-                            ultima_x - primeira_x + 40, 50))
-            
-            # Texto "Fila de Espera"
-            fonte = pygame.font.SysFont(None, 20)
-            texto = fonte.render("Fila de Espera", True, CINZA)
-            tela.blit(texto, (primeira_x - 15, primeira_y - 20))
-    
-    def _desenhar_ui(self, tela):
-        fonte_info = pygame.font.SysFont(None, 24)
-        
-        # Converte posições do grid para pixels
-        ui_x, ui_y, _, _ = GridHelper.para_pixels(*POS_UI, 4, 2)
-        inst_x, inst_y, _, _ = GridHelper.para_pixels(*POS_INSTRUCOES, 4, 2)
-        
-        # Informações do sistema
-        freq_atual = self.obter_frequencia_atual()
-        info_frequencia = fonte_info.render(f"Frequência: {freq_atual['nome']}", True, AMARELO)
-        tela.blit(info_frequencia, (ui_x, ui_y))
-        
-        info_processos = fonte_info.render(f"Processos ativos: {len(self.processos)}", True, BRANCO)
-        tela.blit(info_processos, (ui_x, ui_y + 30))
-        
-        info_fila = fonte_info.render(f"Fila: {len(self.fila_espera)} processos", True, BRANCO)
-        tela.blit(info_fila, (ui_x, ui_y + 60))
-        
-        status_auto = "LIGADA" if self.geracao_automatica else "DESLIGADA"
-        cor_status = VERDE if self.geracao_automatica else VERMELHO
-        info_auto = fonte_info.render(f"Auto: {status_auto}", True, cor_status)
-        tela.blit(info_auto, (ui_x, ui_y + 90))
-        
-        # Instruções
-        instrucoes = [
-            "ESPACO: Gerar processo",
-            "A: + Frequência", 
-            "Z: - Frequência",
-            "G: Toggle Auto",
-            "ESC: Sair"
-        ]
-        
-        for i, instrucao in enumerate(instrucoes):
-            texto_inst = fonte_info.render(instrucao, True, CINZA)
-            tela.blit(texto_inst, (inst_x, inst_y + i * 25))
+    def _draw_processing_process(self, screen: pygame.Surface) -> None:
+        """Desenha o processo atualmente em processamento na CPU"""
+        if self.computer.current_process and self.computer.current_process.state == ProcessState.PROCESSING:
+            process = self.computer.current_process
+            cpu_x, cpu_y = self.computer.get_center()
+            process.x, process.y = cpu_x, cpu_y
+            process.draw(screen)

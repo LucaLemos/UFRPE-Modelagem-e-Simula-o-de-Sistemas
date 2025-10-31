@@ -1,39 +1,30 @@
 import pygame
 import sys
 from core.queue_simulator import QueueSimulator
-from config import LARGURA, ALTURA, FPS
+from config import SCREEN_WIDTH, SCREEN_HEIGHT, FPS
 
 def main():
     # Inicialização
     pygame.init()
-    tela = pygame.display.set_mode((LARGURA, ALTURA))
+    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Queue Simulator - Gerenciamento de Processos")
     
-    # Cria o simulador
-    simulador = QueueSimulator()
+    # Criar simulador
+    simulator = QueueSimulator()
     clock = pygame.time.Clock()
-    executando = True
+    is_running = True
     
     # Loop principal
-    while executando:
-        for evento in pygame.event.get():
-            if evento.type == pygame.QUIT:
-                executando = False
-            elif evento.type == pygame.KEYDOWN:
-                if evento.key == pygame.K_SPACE:
-                    simulador.gerar_processo()
-                elif evento.key == pygame.K_a:
-                    simulador.aumentar_frequencia()
-                elif evento.key == pygame.K_z:
-                    simulador.diminuir_frequencia()
-                elif evento.key == pygame.K_g:
-                    simulador.toggle_geracao_automatica()
-                elif evento.key == pygame.K_ESCAPE:
-                    executando = False
+    while is_running:
+        # Processar eventos
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                is_running = False
+            # REMOVIDO: Todos os controles de teclado
         
-        # Atualiza e desenha
-        simulador.atualizar()
-        simulador.desenhar(tela)
+        # Atualizar e desenhar
+        simulator.update()
+        simulator.draw(screen)
         
         pygame.display.flip()
         clock.tick(FPS)
