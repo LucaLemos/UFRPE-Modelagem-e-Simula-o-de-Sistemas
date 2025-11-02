@@ -16,6 +16,12 @@ class Computer:
         self.is_idle = True
         self.current_process = None
     
+    def is_clicked(self, pos):
+        """Verifica se a CPU foi clicada"""
+        x, y = pos
+        return (self.x <= x <= self.x + self.width and 
+                self.y <= y <= self.y + self.height)
+    
     @property
     def color(self) -> tuple:
         """Retorna a cor baseada no estado"""

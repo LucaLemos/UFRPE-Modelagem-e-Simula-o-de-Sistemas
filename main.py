@@ -20,7 +20,9 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 is_running = False
-            # REMOVIDO: Todos os controles de teclado
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # Botão esquerdo do mouse
+                    simulator.handle_click(event.pos)
         
         # Atualizar e desenhar
         simulator.update()

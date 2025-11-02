@@ -16,6 +16,12 @@ class ProcessGenerator:
         self.color = Colors.GREEN
         self.next_process_id = 1
     
+    def is_clicked(self, pos):
+        """Verifica se o gerador foi clicado"""
+        x, y = pos
+        return (self.x <= x <= self.x + self.width and 
+                self.y <= y <= self.y + self.height)
+    
     def create_process(self) -> Process:
         """Cria um novo processo"""
         center_x, center_y = self.get_center()

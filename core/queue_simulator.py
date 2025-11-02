@@ -27,6 +27,17 @@ class QueueSimulator:
     def generation_interval(self) -> int:
         return GENERATION_FREQUENCIES[self.current_frequency_index]["value"]
     
+    def handle_click(self, pos):
+        """Lida com cliques do mouse nos componentes"""
+        if self.computer.is_clicked(pos):
+            self.info_panel.select_component("computer")
+            print("CPU clicada - mostrando informações da CPU")
+        elif self.generator.is_clicked(pos):
+            self.info_panel.select_component("generator")
+            print("Gerador clicado - mostrando informações do gerador")
+        else:
+            self.info_panel.select_component(None)
+    
     def update(self) -> None:
         """Atualiza o estado do simulador"""
         # Geração automática (sempre ativa)
@@ -38,8 +49,8 @@ class QueueSimulator:
         # Atualizar sistema de conexão (controla todo o fluxo)
         self.connection.update()
         
-        # Atualizar InfoPanel
-        #self.info_panel.update()  # Se tiver método update
+        # Atualizar InfoPanel com informações atualizadas
+        self.info_panel.update_info(self.computer, self.connection, self.processes)
         
         # Verificar conclusão de processamento
         if not self.computer.is_idle:
