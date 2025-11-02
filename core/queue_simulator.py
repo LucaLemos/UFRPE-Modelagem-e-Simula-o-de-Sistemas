@@ -16,6 +16,9 @@ class QueueSimulator:
         self.info_panel = InfoPanel()
         self.connection = ConnectionSystem(self.generator, self.computer)
         
+        # Passar referências dos componentes para o InfoPanel
+        self.info_panel.set_component_references(self.computer, self.generator)
+        
         # Estado do simulador
         self.processes = []
         self.time_since_last_process = 0
@@ -35,6 +38,11 @@ class QueueSimulator:
             print("Visualização detalhada fechada")
             return
         
+        # Verifica se o botão de parar/iniciar foi clicado
+        if self.info_panel.is_stop_button_clicked(pos):
+            self._handle_stop_button_click()
+            return
+        
         # Depois verifica os outros componentes
         if self.computer.is_clicked(pos):
             self.info_panel.select_component("computer")
@@ -46,14 +54,27 @@ class QueueSimulator:
             # Se clicar em qualquer outro lugar, não muda a seleção atual
             pass
     
+    def _handle_stop_button_click(self):
+        """Lida com o clique no botão de parar/iniciar"""
+        selected_component = self.info_panel.selected_component
+        
+        if selected_component == "computer":
+            self.computer.toggle_stop()
+            action = "parada" if self.computer.is_stopped else "retomada"
+            print(f"CPU {action}")
+        elif selected_component == "generator":
+            self.generator.toggle_stop()
+            action = "parado" if self.generator.is_stopped else "retomado"
+            print(f"Gerador {action}")
+    
     def handle_mouse_motion(self, pos):
         """Lida com movimento do mouse para efeitos visuais"""
-        # Atualiza o estado de hover do botão de fechar
-        self.info_panel.update_close_button_hover(pos)
+        # Atualiza o estado de hover dos botões
+        self.info_panel.update_button_hover(pos)
     
     def update(self) -> None:
         """Atualiza o estado do simulador"""
-        # Geração automática (sempre ativa)
+        # Geração automática (sempre ativa, a menos que o gerador esteja parado)
         self._handle_auto_generation()
         
         # Atualizar bloqueio do gerador
@@ -65,8 +86,8 @@ class QueueSimulator:
         # Atualizar InfoPanel com informações atualizadas
         self.info_panel.update_info(self.computer, self.connection, self.processes)
         
-        # Verificar conclusão de processamento
-        if not self.computer.is_idle:
+        # Verificar conclusão de processamento (a menos que a CPU esteja parada)
+        if not self.computer.is_idle and not self.computer.is_stopped:
             if self.computer.check_processing_complete():
                 print("CPU liberada - processo finalizado")
                 self.show_metrics()
@@ -77,14 +98,15 @@ class QueueSimulator:
     
     def _handle_auto_generation(self) -> None:
         """Gerencia a geração automática de processos"""
-        if self.connection.has_capacity:
+        if self.connection.has_capacity and not self.generator.is_stopped:
             self.time_since_last_process += 1
             if self.time_since_last_process >= self.generation_interval:
                 process = self.generator.create_process()
-                self.processes.append(process)
-                if self.connection.add_process(process):
-                    print(f"Processo {process.id} criado automaticamente")
-                self.time_since_last_process = 0
+                if process:  # Só adiciona se o gerador não estiver parado
+                    self.processes.append(process)
+                    if self.connection.add_process(process):
+                        print(f"Processo {process.id} criado automaticamente")
+                    self.time_since_last_process = 0
     
     def _cleanup_completed_processes(self) -> None:
         """Remove processos finalizados do sistema"""
@@ -114,7 +136,7 @@ class QueueSimulator:
     
     def _draw_processing_process(self, screen: pygame.Surface) -> None:
         """Desenha o processo atualmente em processamento na CPU"""
-        if self.computer.current_process and self.computer.current_process.state == ProcessState.PROCESSING:
+        if self.computer.current_process and self.computer.current_process.state == ProcessState.PROCESSING and not self.computer.is_stopped:
             process = self.computer.current_process
             cpu_x, cpu_y = self.computer.get_center()
             process.x, process.y = cpu_x, cpu_y
