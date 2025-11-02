@@ -37,12 +37,15 @@ GENERATION_FREQUENCIES = [
 # Posições no Grid
 class GridPositions:
     GENERATOR = (1, 1)  
-    COMPUTER = (9, 1)    
+    COMPUTER = (9, 1)
+    INFO_PANEL = (0, 6)  # ao lado do computador, por exemplo
+  
 
 # Tamanhos dos Elementos
 class ElementSizes:
     COMPUTER = (2, 2)
     GENERATOR = (2, 2)
+    INFO_PANEL = (12, 2)
 
 # Configurações de Processamento
 PROCESSING_TIME_MS = 2000  # 2 segundos

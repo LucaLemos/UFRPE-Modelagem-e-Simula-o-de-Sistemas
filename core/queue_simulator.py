@@ -3,6 +3,7 @@ from typing import Dict, Any
 from config import Colors, GENERATION_FREQUENCIES
 from entities.generator import ProcessGenerator
 from entities.computer import Computer
+from entities.infoPanel import InfoPanel
 from entities.process_states import ProcessState
 from core.connection_system import ConnectionSystem
 from utils.grid_helper import GridHelper
@@ -12,6 +13,7 @@ class QueueSimulator:
         # Componentes do sistema
         self.generator = ProcessGenerator()
         self.computer = Computer()
+        self.info_panel = InfoPanel()  # Adiciona o InfoPanel
         self.connection = ConnectionSystem(self.generator, self.computer)
         
         # Estado do simulador
@@ -35,6 +37,9 @@ class QueueSimulator:
         
         # Atualizar sistema de conexão (controla todo o fluxo)
         self.connection.update()
+        
+        # Atualizar InfoPanel
+        #self.info_panel.update()  # Se tiver método update
         
         # Verificar conclusão de processamento
         if not self.computer.is_idle:
@@ -78,6 +83,7 @@ class QueueSimulator:
         # Componentes principais
         self.generator.draw(screen)
         self.computer.draw(screen)
+        self.info_panel.draw(screen)  # Desenha o InfoPanel
         
         # Processo sendo processado (dentro da CPU)
         self._draw_processing_process(screen)
