@@ -13,7 +13,7 @@ class QueueSimulator:
         # Componentes do sistema
         self.generator = ProcessGenerator()
         self.computer = Computer()
-        self.info_panel = InfoPanel()  # Adiciona o InfoPanel
+        self.info_panel = InfoPanel()
         self.connection = ConnectionSystem(self.generator, self.computer)
         
         # Estado do simulador
@@ -29,6 +29,13 @@ class QueueSimulator:
     
     def handle_click(self, pos):
         """Lida com cliques do mouse nos componentes"""
+        # Primeiro verifica se o botão de fechar foi clicado
+        if self.info_panel.is_close_button_clicked(pos):
+            self.info_panel.close_detailed_view()
+            print("Visualização detalhada fechada")
+            return
+        
+        # Depois verifica os outros componentes
         if self.computer.is_clicked(pos):
             self.info_panel.select_component("computer")
             print("CPU clicada - mostrando informações da CPU")
@@ -36,7 +43,13 @@ class QueueSimulator:
             self.info_panel.select_component("generator")
             print("Gerador clicado - mostrando informações do gerador")
         else:
-            self.info_panel.select_component(None)
+            # Se clicar em qualquer outro lugar, não muda a seleção atual
+            pass
+    
+    def handle_mouse_motion(self, pos):
+        """Lida com movimento do mouse para efeitos visuais"""
+        # Atualiza o estado de hover do botão de fechar
+        self.info_panel.update_close_button_hover(pos)
     
     def update(self) -> None:
         """Atualiza o estado do simulador"""

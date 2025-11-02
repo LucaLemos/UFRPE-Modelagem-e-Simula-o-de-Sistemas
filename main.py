@@ -23,6 +23,8 @@ def main():
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Botão esquerdo do mouse
                     simulator.handle_click(event.pos)
+            elif event.type == pygame.MOUSEMOTION:
+                simulator.handle_mouse_motion(event.pos)
         
         # Atualizar e desenhar
         simulator.update()
