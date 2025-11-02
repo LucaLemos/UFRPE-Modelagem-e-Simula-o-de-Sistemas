@@ -40,9 +40,11 @@ class QueueSimulator:
         if not self.computer.is_idle:
             if self.computer.check_processing_complete():
                 print("CPU liberada - processo finalizado")
+                self.show_metrics()
         
         # Limpar processos finalizados
         self._cleanup_completed_processes()
+
     
     def _handle_auto_generation(self) -> None:
         """Gerencia a geração automática de processos"""
@@ -87,3 +89,29 @@ class QueueSimulator:
             cpu_x, cpu_y = self.computer.get_center()
             process.x, process.y = cpu_x, cpu_y
             process.draw(screen)
+
+
+    def show_metrics(self):
+        """Calcula e exibe métricas do sistema de filas M/M/1"""
+
+        # Parâmetros do sistema (ainda falta poder configurar dinamicamente)
+        process_generation_interval = GENERATION_FREQUENCIES[self.current_frequency_index]["value"]  # em segundos
+        _lambda = 1 / (process_generation_interval/60)  # taxa de chegada
+        mu = 1 / 2  # taxa de serviço
+
+        rho = _lambda / mu  # Utilização do sistema
+        L = rho / (1 - rho)  # Número médio de clientes no sistema
+        Lq = rho**2 / (1 - rho)  # Número médio de clientes na fila
+        W = 1 / (mu - _lambda)  # Tempo médio no sistema
+        Wq = rho / (mu - _lambda)  # Tempo médio na fila
+
+        if rho >= 1:
+            print("Sistema instável: a taxa de chegada é maior ou igual à taxa de serviço.")
+        else:
+            print(f"Taxa de chegada (λ): {_lambda:.3f} processos/unidade de tempo")
+            print(f"Taxa de serviço (μ): {mu:.3f} processos/unidade de tempo")
+            print(f"Utilização do sistema (ρ): {rho:.3f}")
+            print(f"Número médio de clientes no sistema (L): {L:.3f}")
+            print(f"Número médio de clientes na fila (Lq): {Lq:.3f}")
+            print(f"Tempo médio no sistema (W): {W:.3f} unidades de tempo")
+            print(f"Tempo médio na fila (Wq): {Wq:.3f} unidades de tempo")
