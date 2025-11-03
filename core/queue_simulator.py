@@ -1,6 +1,6 @@
 import pygame
 from typing import Dict, Any
-from config import Colors, GENERATION_FREQUENCIES
+from config import Colors, GridPositions, GENERATION_FREQUENCIES
 from entities.generator import ProcessGenerator
 from entities.computer import Computer
 from entities.infoPanel import InfoPanel
@@ -25,6 +25,9 @@ class QueueSimulator:
         self.current_frequency_index = 2  # Frequência padrão: Normal
         self.is_auto_generation_enabled = True  # Sempre ativo
         self.is_generator_blocked = False
+
+        # Sistema de pontuação (NOVO)
+        self.score = 0
     
     @property
     def generation_interval(self) -> int:
@@ -90,11 +93,16 @@ class QueueSimulator:
         if not self.computer.is_idle and not self.computer.is_stopped:
             if self.computer.check_processing_complete():
                 print("CPU liberada - processo finalizado")
+                self._add_score()
                 self.show_metrics()
         
         # Limpar processos finalizados
         self._cleanup_completed_processes()
 
+    def _add_score(self):
+        """Adiciona pontos quando um processo é completado com sucesso"""
+        self.score += 1
+        print(f"✅ Processo completado! Pontuação: {self.score}")
     
     def _handle_auto_generation(self) -> None:
         """Gerencia a geração automática de processos"""
@@ -133,7 +141,34 @@ class QueueSimulator:
         
         # Processo sendo processado (dentro da CPU)
         self._draw_processing_process(screen)
+
+        self._draw_score_display(screen)
     
+    def _draw_score_display(self, screen: pygame.Surface) -> None:
+        """Desenha a pontuação no grid (0,0)"""
+        # Criar um retângulo para o display de pontuação
+        score_x, score_y, score_width, score_height = GridHelper.grid_to_pixels(
+            GridPositions.SCORE_DISPLAY[0], 
+            GridPositions.SCORE_DISPLAY[1], 
+            1, 1
+)
+        
+        # Fundo do display
+        pygame.draw.rect(screen, Colors.DARK_GRAY, (score_x, score_y, score_width, score_height))
+        pygame.draw.rect(screen, Colors.WHITE, (score_x, score_y, score_width, score_height), 2)
+        
+        # Texto da pontuação
+        font_large = pygame.font.SysFont(None, 34)
+        font_small = pygame.font.SysFont(None, 18)
+        
+        # Título
+        title_text = font_small.render("PONTUAÇÃO", True, Colors.WHITE)
+        screen.blit(title_text, (score_x + score_width//2 - title_text.get_width()//2, score_y + 10))
+        
+        # Valor da pontuação
+        score_text = font_large.render(str(self.score), True, Colors.GREEN)
+        screen.blit(score_text, (score_x + score_width//2 - score_text.get_width()//2, score_y + 30))
+
     def _draw_processing_process(self, screen: pygame.Surface) -> None:
         """Desenha o processo atualmente em processamento na CPU"""
         if self.computer.current_process and self.computer.current_process.state == ProcessState.PROCESSING and not self.computer.is_stopped:

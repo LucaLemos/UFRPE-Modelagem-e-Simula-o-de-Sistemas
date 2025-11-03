@@ -36,9 +36,10 @@ GENERATION_FREQUENCIES = [
 
 # Posições no Grid
 class GridPositions:
+    SCORE_DISPLAY = (0, 0)
     GENERATOR = (1, 1)  
     COMPUTER = (9, 1)
-    INFO_PANEL = (0, 6)  # ao lado do computador, por exemplo
+    INFO_PANEL = (0, 6)
   
 
 # Tamanhos dos Elementos
