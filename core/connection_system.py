@@ -86,7 +86,6 @@ class ConnectionSystem:
                 # Verificar chegada
                 if self._distance_to_end(process) <= self.transport_speed:
                     process.x, process.y = self.end_point
-                    process.state = ProcessState.WAITING_CPU
                     arrived_processes.append(process)
                     self.transit_processes.remove(process)
         
@@ -95,6 +94,7 @@ class ConnectionSystem:
             if self.computer.is_idle:
                 self.computer.start_processing(process)
             else:
+                process.enter_cpu_queue()  # Set queue entry time
                 self.cpu_queue.append(process)
     
     def _process_cpu_queue(self) -> None:
