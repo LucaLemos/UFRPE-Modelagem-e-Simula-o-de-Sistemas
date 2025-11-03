@@ -25,6 +25,8 @@ def main():
                     simulator.handle_click(event.pos)
             elif event.type == pygame.MOUSEMOTION:
                 simulator.handle_mouse_motion(event.pos)
+            elif event.type == pygame.KEYDOWN:
+                simulator.handle_key_event(event)
         
         # Atualizar e desenhar
         simulator.update()

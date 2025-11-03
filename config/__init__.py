@@ -1,4 +1,3 @@
-# Configurações de Display
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 FPS = 60
@@ -39,14 +38,14 @@ class GridPositions:
     SCORE_DISPLAY = (0, 0)
     GENERATOR = (1, 1)  
     COMPUTER = (9, 1)
-    INFO_PANEL = (0, 6)
+    INFO_PANEL = (0, 4)  # Changed from (0,6) to (0,4) - moved up to have more space
   
 
 # Tamanhos dos Elementos
 class ElementSizes:
     COMPUTER = (2, 2)
     GENERATOR = (2, 2)
-    INFO_PANEL = (12, 2)
+    INFO_PANEL = (12, 4)  # Changed from (12,2) to (12,4) - increased height
 
 # Configurações de Processamento
 PROCESSING_TIME_MS = 2000  # 2 segundos

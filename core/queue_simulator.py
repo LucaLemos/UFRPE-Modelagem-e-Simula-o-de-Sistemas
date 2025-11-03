@@ -1,6 +1,6 @@
 import pygame
 from typing import Dict, Any
-from config import Colors, GridPositions, GENERATION_FREQUENCIES
+from config import Colors, GridPositions, GENERATION_FREQUENCIES, FPS
 from entities.generator import ProcessGenerator
 from entities.computer import Computer
 from entities.infoPanel import InfoPanel
@@ -16,13 +16,10 @@ class QueueSimulator:
         self.info_panel = InfoPanel()
         self.connection = ConnectionSystem(self.generator, self.computer)
         
-        # Passar referências dos componentes para o InfoPanel
-        self.info_panel.set_component_references(self.computer, self.generator)
-        
         # Estado do simulador
         self.processes = []
-        self.time_since_last_process = 0
-        self.current_frequency_index = 2  # Frequência padrão: Normal
+        self.time_since_last_process = 0.0  # Now in seconds
+        self.current_interval_seconds = 1.0  # Default: 1 second
         self.is_auto_generation_enabled = True  # Sempre ativo
         self.is_generator_blocked = False
 
@@ -32,6 +29,9 @@ class QueueSimulator:
     @property
     def generation_interval(self) -> int:
         return GENERATION_FREQUENCIES[self.current_frequency_index]["value"]
+        
+        # Passar referências dos componentes para o InfoPanel
+        self.info_panel.set_component_references(self.computer, self.generator, self)
     
     def handle_click(self, pos):
         """Lida com cliques do mouse nos componentes"""
@@ -46,16 +46,93 @@ class QueueSimulator:
             self._handle_stop_button_click()
             return
         
+        # Verifica se o campo de intervalo foi clicado (apenas para gerador)
+        if (self.info_panel.selected_component == "generator" and 
+            self.info_panel.is_interval_input_clicked(pos)):
+            self.info_panel.activate_interval_input()
+            return
+        
+        # Verifica se o campo de tempo de processamento foi clicado (apenas para computador)
+        if (self.info_panel.selected_component == "computer" and 
+            self.info_panel.is_processing_time_input_clicked(pos)):
+            self.info_panel.activate_processing_time_input()
+            return
+        
         # Depois verifica os outros componentes
         if self.computer.is_clicked(pos):
             self.info_panel.select_component("computer")
+            self.info_panel.deactivate_all_inputs()
             print("CPU clicada - mostrando informações da CPU")
         elif self.generator.is_clicked(pos):
             self.info_panel.select_component("generator")
             print("Gerador clicado - mostrando informações do gerador")
         else:
-            # Se clicar em qualquer outro lugar, não muda a seleção atual
-            pass
+            # Se clicar em qualquer outro lugar, desativa todos os campos de entrada
+            self.info_panel.deactivate_all_inputs()
+    
+    def handle_key_event(self, event):
+        """Lida com eventos de teclado para entrada de texto"""
+        # Handle generator interval input
+        if (self.info_panel.selected_component == "generator" and 
+            self.info_panel.is_interval_input_active):
+            
+            if event.key == pygame.K_RETURN:
+                # Aplica o intervalo digitado
+                new_interval = self.info_panel.get_interval_input_value()
+                if new_interval > 0:
+                    self.current_interval_seconds = new_interval
+                    print(f"Intervalo alterado para: {new_interval:.2f} segundos")
+                    self.time_since_last_process = 0.0  # Reset timer
+                self.info_panel.deactivate_all_inputs()
+            
+            elif event.key == pygame.K_ESCAPE:
+                # Cancela a edição
+                self.info_panel.deactivate_all_inputs()
+                # Restaura o valor atual
+                self.info_panel.interval_input_text = f"{self.current_interval_seconds:.2f}"
+            
+            elif event.key == pygame.K_BACKSPACE:
+                # Remove o último caractere
+                self.info_panel.remove_character_from_interval_input()
+            
+            elif event.key == pygame.K_DELETE:
+                # Limpa o campo
+                self.info_panel.clear_interval_input()
+            
+            else:
+                # Adiciona o caractere se for um dígito ou ponto decimal
+                if event.unicode.isdigit() or event.unicode == '.':
+                    self.info_panel.add_character_to_interval_input(event.unicode)
+        
+        # Handle computer processing time input
+        elif (self.info_panel.selected_component == "computer" and 
+              self.info_panel.is_processing_time_input_active):
+            
+            if event.key == pygame.K_RETURN:
+                # Aplica o tempo de processamento digitado
+                new_processing_time = self.info_panel.get_processing_time_input_value()
+                if new_processing_time > 0:
+                    self.computer.set_processing_time(new_processing_time)
+                self.info_panel.deactivate_all_inputs()
+            
+            elif event.key == pygame.K_ESCAPE:
+                # Cancela a edição
+                self.info_panel.deactivate_all_inputs()
+                # Restaura o valor atual
+                self.info_panel.processing_time_input_text = f"{self.computer.processing_time_ms/1000:.2f}"
+            
+            elif event.key == pygame.K_BACKSPACE:
+                # Remove o último caractere
+                self.info_panel.remove_character_from_processing_time_input()
+            
+            elif event.key == pygame.K_DELETE:
+                # Limpa o campo
+                self.info_panel.clear_processing_time_input()
+            
+            else:
+                # Adiciona o caractere se for um dígito ou ponto decimal
+                if event.unicode.isdigit() or event.unicode == '.':
+                    self.info_panel.add_character_to_processing_time_input(event.unicode)
     
     def _handle_stop_button_click(self):
         """Lida com o clique no botão de parar/iniciar"""
@@ -87,7 +164,7 @@ class QueueSimulator:
         self.connection.update()
         
         # Atualizar InfoPanel com informações atualizadas
-        self.info_panel.update_info(self.computer, self.connection, self.processes)
+        self.info_panel.update_info(self.computer, self.connection, self.processes, self.current_interval_seconds)
         
         # Verificar conclusão de processamento (a menos que a CPU esteja parada)
         if not self.computer.is_idle and not self.computer.is_stopped:
@@ -107,14 +184,16 @@ class QueueSimulator:
     def _handle_auto_generation(self) -> None:
         """Gerencia a geração automática de processos"""
         if self.connection.has_capacity and not self.generator.is_stopped:
-            self.time_since_last_process += 1
-            if self.time_since_last_process >= self.generation_interval:
+            # Convert frames to seconds (each frame is 1/FPS seconds)
+            self.time_since_last_process += 1.0 / FPS
+            
+            if self.time_since_last_process >= self.current_interval_seconds:
                 process = self.generator.create_process()
                 if process:  # Só adiciona se o gerador não estiver parado
                     self.processes.append(process)
                     if self.connection.add_process(process):
                         print(f"Processo {process.id} criado automaticamente")
-                    self.time_since_last_process = 0
+                    self.time_since_last_process = 0.0
     
     def _cleanup_completed_processes(self) -> None:
         """Remove processos finalizados do sistema"""
@@ -181,24 +260,28 @@ class QueueSimulator:
     def show_metrics(self):
         """Calcula e exibe métricas do sistema de filas M/M/1"""
 
-        # Parâmetros do sistema (ainda falta poder configurar dinamicamente)
-        process_generation_interval = GENERATION_FREQUENCIES[self.current_frequency_index]["value"]  # em segundos
-        _lambda = 1 / (process_generation_interval/60)  # taxa de chegada
-        mu = 1 / 2  # taxa de serviço
+        # Parâmetros do sistema
+        process_generation_interval_seconds = self.current_interval_seconds
+        lambda_rate = 1 / process_generation_interval_seconds  # taxa de chegada
+        mu_rate = 1 / (self.computer.processing_time_ms / 1000)  # taxa de serviço (based on computer processing time)
 
-        rho = _lambda / mu  # Utilização do sistema
-        L = rho / (1 - rho)  # Número médio de clientes no sistema
-        Lq = rho**2 / (1 - rho)  # Número médio de clientes na fila
-        W = 1 / (mu - _lambda)  # Tempo médio no sistema
-        Wq = rho / (mu - _lambda)  # Tempo médio na fila
-
-        if rho >= 1:
-            print("Sistema instável: a taxa de chegada é maior ou igual à taxa de serviço.")
-        else:
-            print(f"Taxa de chegada (λ): {_lambda:.3f} processos/unidade de tempo")
-            print(f"Taxa de serviço (μ): {mu:.3f} processos/unidade de tempo")
-            print(f"Utilização do sistema (ρ): {rho:.3f}")
+        rho = lambda_rate / mu_rate  # Utilização do sistema
+        
+        if rho < 1:
+            L = rho / (1 - rho)  # Número médio de clientes no sistema
+            Lq = rho**2 / (1 - rho)  # Número médio de clientes na fila
+            W = 1 / (mu_rate - lambda_rate)  # Tempo médio no sistema
+            Wq = rho / (mu_rate - lambda_rate)  # Tempo médio na fila
+            
+            print(f"Taxa de chegada (lambda): {lambda_rate:.3f} processos/segundo")
+            print(f"Taxa de serviço (mu): {mu_rate:.3f} processos/segundo")
+            print(f"Utilização do sistema (rho): {rho:.3f}")
             print(f"Número médio de clientes no sistema (L): {L:.3f}")
             print(f"Número médio de clientes na fila (Lq): {Lq:.3f}")
-            print(f"Tempo médio no sistema (W): {W:.3f} unidades de tempo")
-            print(f"Tempo médio na fila (Wq): {Wq:.3f} unidades de tempo")
+            print(f"Tempo médio no sistema (W): {W:.3f} segundos")
+            print(f"Tempo médio na fila (Wq): {Wq:.3f} segundos")
+        else:
+            print("Sistema instável: a taxa de chegada é maior ou igual à taxa de serviço.")
+            print(f"Taxa de chegada (lambda): {lambda_rate:.3f} processos/segundo")
+            print(f"Taxa de serviço (mu): {mu_rate:.3f} processos/segundo")
+            print(f"Utilização do sistema (rho): {rho:.3f}")
