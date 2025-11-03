@@ -23,6 +23,8 @@ class Colors:
     LIGHT_GREEN = (100, 255, 100)
     ORANGE = (255, 165, 0)
     PURPLE = (128, 0, 128)
+    CYAN = (0, 255, 255)
+    PINK = (255, 192, 203)
 
 # Frequências de Geração
 GENERATION_FREQUENCIES = [
@@ -37,17 +39,26 @@ GENERATION_FREQUENCIES = [
 class GridPositions:
     SCORE_DISPLAY = (0, 0)
     GENERATOR = (1, 1)  
-    COMPUTER = (9, 1)
-    INFO_PANEL = (0, 4)  # Changed from (0,6) to (0,4) - moved up to have more space
-  
+    COMPUTER_1 = (5, 1)  # CPU 1
+    COMPUTER_2 = (5, 2)  # CPU 2
+    COMPUTER_3 = (5, 3)  # CPU 3
+    COMPUTER_4 = (6, 1)  # Nova CPU 4
+    COMPUTER_5 = (6, 2)  # Nova CPU 5  
+    COMPUTER_6 = (6, 3)  # Nova CPU 6
+    INFO_PANEL = (0, 4)
+    SHOP_PANEL = (10, 0)  # Novo painel da loja
 
 # Tamanhos dos Elementos
 class ElementSizes:
-    COMPUTER = (2, 2)
-    GENERATOR = (2, 2)
-    INFO_PANEL = (12, 4)  # Changed from (12,2) to (12,4) - increased height
+    COMPUTER = (1, 1)
+    GENERATOR = (1, 1)
+    INFO_PANEL = (10, 4)
+    SHOP_PANEL = (2, 8)
 
 # Configurações de Processamento
 PROCESSING_TIME_MS = 2000  # 2 segundos
-MAX_CONNECTION_CAPACITY = 10
+MAX_CONNECTION_CAPACITY = 15  # Aumentada para múltiplas CPUs
 TRANSPORT_SPEED = 3.0
+
+# Cores para múltiplas CPUs
+CPU_COLORS = [Colors.RED, Colors.CYAN, Colors.PINK]  # Adicionada esta linha

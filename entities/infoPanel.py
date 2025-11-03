@@ -4,7 +4,6 @@ from utils.grid_helper import GridHelper
 
 class InfoPanel:
     def __init__(self):
-        # Mesmas dimensões do computador
         col, row = GridPositions.INFO_PANEL
         width_cells, height_cells = ElementSizes.INFO_PANEL
 
@@ -25,7 +24,7 @@ class InfoPanel:
             self.close_button_size
         )
         self.close_button_color = Colors.RED
-        self.close_button_hover_color = (200, 0, 0)  # Darker red
+        self.close_button_hover_color = (200, 0, 0)
         self.is_close_button_hovered = False
         
         # Stop/Start button properties
@@ -37,100 +36,109 @@ class InfoPanel:
         )
         self.stop_button_color = Colors.RED
         self.stop_button_start_color = Colors.GREEN
-        self.stop_button_hover_color = (180, 0, 0)  # Darker red
-        self.stop_button_start_hover_color = (0, 180, 0)  # Darker green
+        self.stop_button_hover_color = (180, 0, 0)
+        self.stop_button_start_hover_color = (0, 180, 0)
         self.is_stop_button_hovered = False
 
-        # Interval input properties (in seconds) - for generator
+        # Interval input properties (for generator)
         self.interval_input_rect = pygame.Rect(
             self.x + 20,
             self.y + self.height - 80,
             self.width - 40,
             30
         )
-        self.interval_input_text = "1.0"  # Default value (1 second)
+        self.interval_input_text = "1.0"
         self.is_interval_input_active = False
         self.interval_input_color = Colors.WHITE
         self.interval_input_active_color = Colors.LIGHT_GREEN
 
-        # Processing time input properties (in seconds) - for computer
+        # Processing time input properties (for computers)
         self.processing_time_input_rect = pygame.Rect(
             self.x + 20,
             self.y + self.height - 80,
             self.width - 40,
             30
         )
-        self.processing_time_input_text = "2.0"  # Default value (2 seconds)
+        self.processing_time_input_text = "2.0"
         self.is_processing_time_input_active = False
         self.processing_time_input_color = Colors.WHITE
         self.processing_time_input_active_color = Colors.LIGHT_GREEN
 
-        # Max queue time input properties (in seconds) - for computer
+        # Max queue time input properties
         self.max_queue_time_input_rect = pygame.Rect(
             self.x + 20,
             self.y + self.height - 120,
             self.width - 40,
             30
         )
-        self.max_queue_time_input_text = "10.0"  # Default value (10 seconds)
+        self.max_queue_time_input_text = "10.0"
         self.is_max_queue_time_input_active = False
         self.max_queue_time_input_color = Colors.WHITE
         self.max_queue_time_input_active_color = Colors.LIGHT_GREEN
 
-    def update_info(self, computer, connection, processes, current_interval_seconds=None, max_queue_time_seconds=None, timed_out_processes=0):
+    def update_info(self, computers, connection, processes, current_interval_seconds=None, max_queue_time_seconds=None, timed_out_processes=0):
         """Atualiza as informações exibidas no painel"""
-        if self.selected_component == "computer":
-            self._show_computer_info(computer, connection, max_queue_time_seconds, timed_out_processes)
+        if self.selected_component and self.selected_component.startswith("computer_"):
+            computer_index = int(self.selected_component.split('_')[1]) - 1
+            if computer_index < len(computers):
+                self._show_computer_info(computers[computer_index], connection, max_queue_time_seconds, timed_out_processes)
         elif self.selected_component == "generator":
-            self._show_generator_info(connection, computer, current_interval_seconds)
+            self._show_generator_info(connection, computers, current_interval_seconds)
         else:
-            self._show_general_info(computer, connection, processes, current_interval_seconds, max_queue_time_seconds, timed_out_processes)
+            self._show_general_info(computers, connection, processes, current_interval_seconds, max_queue_time_seconds, timed_out_processes)
 
-    def _show_general_info(self, computer, connection, processes, current_interval_seconds, max_queue_time_seconds, timed_out_processes):
-        """Mostra informações gerais do sistema"""
-        cpu_status = "OCIOSA" if computer.is_idle else f"Processando P{computer.current_process.id}"
-        cpu_stopped = "(PARADA)" if getattr(computer, 'is_stopped', False) else ""
-        generator_stopped = "(PARADO)" if getattr(connection.generator, 'is_stopped', False) else ""
-        
-        fila_status = f"{len(connection.cpu_queue)} processo(s) na fila"
+    def _show_general_info(self, computers, connection, processes, current_interval_seconds, max_queue_time_seconds, timed_out_processes):
+        """Mostra informações gerais do sistema multi-CPU"""
+        active_cpus = sum(1 for cpu in computers if not cpu.is_stopped)
+        total_queue = sum(len(cpu.queue) for cpu in computers)
+        processing_cpus = sum(1 for cpu in computers if not cpu.is_idle and not cpu.is_stopped)
         concluidos = sum(1 for p in processes if not p.is_active)
 
         self.info_lines = [
-            "=== SISTEMA ===",
-            f"CPU: {cpu_status} {cpu_stopped}",
-            f"Gerador: {generator_stopped}",
+            "=== SISTEMA MULTI-CPU ===",
+            f"CPUs Ativas: {active_cpus}/{len(computers)}",
+            f"CPUs Processando: {processing_cpus}",
+            f"Gerador: {'PARADO' if getattr(connection.generator, 'is_stopped', False) else 'ATIVO'}",
             f"Intervalo: {current_interval_seconds:.2f} segundos",
-            f"Processamento: {computer.processing_time_ms/1000:.2f} segundos",
             f"Tempo máximo fila: {max_queue_time_seconds:.2f} segundos",
-            f"Fila: {fila_status}",
+            f"Total em filas: {total_queue} processos",
             f"Concluídos: {concluidos}",
             f"Expirados: {timed_out_processes}",
             f"Capacidade: {connection.total_processes}/{connection.max_capacity}",
             "",
+            "=== CPUs ==="
+        ]
+        
+        # Adicionar informações de cada CPU
+        for i, computer in enumerate(computers):
+            status = "PARADA" if computer.is_stopped else "PROCESSANDO" if not computer.is_idle else "OCIOSA"
+            self.info_lines.append(f"CPU {i+1}: {status} (Fila: {len(computer.queue)})")
+        
+        self.info_lines.extend([
+            "",
             "Clique em um componente",
             "para mais informações e controles"
-        ]
+        ])
 
     def _show_computer_info(self, computer, connection, max_queue_time_seconds, timed_out_processes):
-        """Mostra informações detalhadas da CPU"""
+        """Mostra informações detalhadas de uma CPU específica"""
         status = "PROCESSANDO" if not computer.is_idle else "OCIOSO"
         processo_atual = f"P{computer.current_process.id}" if computer.current_process else "Nenhum"
         is_stopped = getattr(computer, 'is_stopped', False)
         stopped_status = " (PARADA)" if is_stopped else ""
         
         self.info_lines = [
-            "=== CPU ===",
+            f"=== {computer.name} ===",
             f"Status: {status}{stopped_status}",
             f"Processo atual: {processo_atual}",
-            f"Fila de CPU: {len(connection.cpu_queue)} processos",
+            f"Fila: {len(computer.queue)} processos",
             f"Tempo de processamento: {computer.processing_time_ms/1000:.2f} segundos",
             f"Tempo máximo na fila: {max_queue_time_seconds:.2f} segundos",
             f"Processos expirados: {timed_out_processes}",
             "",
             "Estatísticas:",
-            f"- Processos na fila: {len(connection.cpu_queue)}",
-            f"- Capacidade: {connection.total_processes}/{connection.max_capacity}",
-            f"- Velocidade: {connection.transport_speed} px/frame",
+            f"- Processos na fila: {len(computer.queue)}",
+            f"- Cor: {self._get_color_name(computer.base_color)}",
             "",
             "Controles:",
             f"- Botão {'LIGAR' if is_stopped else 'PARAR'} para {'retomar' if is_stopped else 'pausar'} processamento",
@@ -140,10 +148,11 @@ class InfoPanel:
             "- Clique no X para voltar"
         ]
 
-    def _show_generator_info(self, connection, computer, current_interval_seconds):
+    def _show_generator_info(self, connection, computers, current_interval_seconds):
         """Mostra informações detalhadas do gerador"""
         is_stopped = getattr(connection.generator, 'is_stopped', False)
         stopped_status = " (PARADO)" if is_stopped else ""
+        total_queue = sum(len(cpu.queue) for cpu in computers)
         
         self.info_lines = [
             "=== GERADOR ===",
@@ -152,6 +161,8 @@ class InfoPanel:
             f"Processos criados: {connection.generator.next_process_id - 1}",
             f"Fila de entrada: {len(connection.input_queue)} processos",
             f"Em trânsito: {len(connection.transit_processes)} processos",
+            f"Total em filas de CPU: {total_queue} processos",
+            f"Estratégia: {connection.load_balancer.distribution_strategy}",
             "",
             "Controles:",
             f"- Botão {'LIGAR' if is_stopped else 'PARAR'} para {'retomar' if is_stopped else 'pausar'} geração",
@@ -160,9 +171,35 @@ class InfoPanel:
             "- Clique no X para voltar"
         ]
 
+    def _get_color_name(self, color):
+        """Retorna o nome da cor baseado na tupla RGB"""
+        color_names = {
+            (255, 0, 0): "Vermelho",
+            (0, 255, 255): "Ciano", 
+            (255, 192, 203): "Rosa",
+            (255, 165, 0): "Laranja"
+        }
+        return color_names.get(color, "Desconhecida")
+
     def select_component(self, component_type):
         """Seleciona qual componente mostrar informações"""
         self.selected_component = component_type
+        # Atualizar textos de input baseado no componente selecionado
+        self._update_input_texts()
+
+    def _update_input_texts(self):
+        """Atualiza os textos dos campos de input baseado no componente selecionado"""
+        if hasattr(self, '_simulator_ref') and self._simulator_ref:
+            if self.selected_component == "generator":
+                self.interval_input_text = f"{self._simulator_ref.current_interval_seconds:.2f}"
+            elif (self.selected_component and 
+                  self.selected_component.startswith("computer_") and
+                  hasattr(self, '_computers_ref')):
+                computer_index = int(self.selected_component.split('_')[1]) - 1
+                if computer_index < len(self._computers_ref):
+                    computer = self._computers_ref[computer_index]
+                    self.processing_time_input_text = f"{computer.processing_time_ms/1000:.2f}"
+                    self.max_queue_time_input_text = f"{self._simulator_ref.max_queue_time_seconds:.2f}"
 
     def close_detailed_view(self):
         """Fecha a visualização detalhada e retorna à visão geral"""
@@ -214,27 +251,21 @@ class InfoPanel:
 
     def add_character_to_interval_input(self, char):
         """Adiciona um caractere ao campo de entrada de intervalo"""
-        # Allow digits, decimal point, and backspace is handled separately
         if char.isdigit() or char == '.':
-            # Only allow one decimal point
             if char == '.' and '.' in self.interval_input_text:
                 return
             self.interval_input_text += char
 
     def add_character_to_processing_time_input(self, char):
         """Adiciona um caractere ao campo de entrada de tempo de processamento"""
-        # Allow digits, decimal point, and backspace is handled separately
         if char.isdigit() or char == '.':
-            # Only allow one decimal point
             if char == '.' and '.' in self.processing_time_input_text:
                 return
             self.processing_time_input_text += char
 
     def add_character_to_max_queue_time_input(self, char):
         """Adiciona um caractere ao campo de entrada de tempo máximo de fila"""
-        # Allow digits, decimal point, and backspace is handled separately
         if char.isdigit() or char == '.':
-            # Only allow one decimal point
             if char == '.' and '.' in self.max_queue_time_input_text:
                 return
             self.max_queue_time_input_text += char
@@ -304,7 +335,9 @@ class InfoPanel:
 
         # Título baseado no componente selecionado
         title = {
-            "computer": "INFORMAÇÕES DA CPU",
+            "computer_1": "INFORMAÇÕES DA CPU 1",
+            "computer_2": "INFORMAÇÕES DA CPU 2", 
+            "computer_3": "INFORMAÇÕES DA CPU 3",
             "generator": "INFORMAÇÕES DO GERADOR",
             None: "PAINEL DE INFORMAÇÕES"
         }.get(self.selected_component, "PAINEL DE INFORMAÇÕES")
@@ -337,10 +370,14 @@ class InfoPanel:
             
             # Determinar texto e cor do botão de parar/iniciar
             is_component_stopped = False
-            if self.selected_component == "computer":
-                is_component_stopped = getattr(self, '_computer_ref', None) and getattr(self._computer_ref, 'is_stopped', False)
-            elif self.selected_component == "generator":
+            if self.selected_component == "generator":
                 is_component_stopped = getattr(self, '_generator_ref', None) and getattr(self._generator_ref, 'is_stopped', False)
+            elif self.selected_component and self.selected_component.startswith("computer_"):
+                computer_index = int(self.selected_component.split('_')[1]) - 1
+                if (hasattr(self, '_computers_ref') and 
+                    computer_index < len(self._computers_ref)):
+                    computer = self._computers_ref[computer_index]
+                    is_component_stopped = getattr(computer, 'is_stopped', False)
             
             stop_button_text = "LIGAR" if is_component_stopped else "PARAR"
             stop_button_color = self.stop_button_start_color if is_component_stopped else self.stop_button_color
@@ -380,7 +417,7 @@ class InfoPanel:
                 label_text = input_font.render("Intervalo (segundos):", True, Colors.BLACK)
                 screen.blit(label_text, (self.interval_input_rect.x, self.interval_input_rect.y - 25))
             
-            elif self.selected_component == "computer":
+            elif self.selected_component and self.selected_component.startswith("computer_"):
                 # Determinar cor do campo de entrada de tempo de processamento
                 processing_input_color = self.processing_time_input_active_color if self.is_processing_time_input_active else self.processing_time_input_color
                 
@@ -418,20 +455,18 @@ class InfoPanel:
                 queue_label_text = input_font.render("Tempo máximo fila (segundos):", True, Colors.BLACK)
                 screen.blit(queue_label_text, (self.max_queue_time_input_rect.x, self.max_queue_time_input_rect.y - 25))
     
-    def set_component_references(self, computer, generator, simulator=None):
+    def set_component_references(self, computers, generator, simulator=None):
         """Define referências aos componentes para verificar estado"""
-        self._computer_ref = computer
+        self._computers_ref = computers
         self._generator_ref = generator
         self._simulator_ref = simulator
         
-        # Set initial input text based on current simulator values
+        # Set initial input text based on current values
         if simulator and hasattr(simulator, 'current_interval_seconds'):
             self.interval_input_text = f"{simulator.current_interval_seconds:.2f}"
         
-        # Set initial processing time text based on computer's current value
-        if computer and hasattr(computer, 'processing_time_ms'):
-            self.processing_time_input_text = f"{computer.processing_time_ms/1000:.2f}"
-        
-        # Set initial max queue time text based on simulator's current value
         if simulator and hasattr(simulator, 'max_queue_time_seconds'):
             self.max_queue_time_input_text = f"{simulator.max_queue_time_seconds:.2f}"
+        
+        if computers and len(computers) > 0:
+            self.processing_time_input_text = f"{computers[0].processing_time_ms/1000:.2f}"

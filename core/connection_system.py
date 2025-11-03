@@ -4,44 +4,99 @@ from config import Colors, MAX_CONNECTION_CAPACITY, TRANSPORT_SPEED
 from entities.process import Process
 from entities.process_states import ProcessState
 
+class LoadBalancer:
+    """Balanceador de carga para distribuir processos entre CPUs"""
+    
+    def __init__(self, computers):
+        self.computers = computers
+        self.current_index = 0
+        self.distribution_strategy = "round_robin"  # "round_robin", "least_loaded"
+    
+    def set_strategy(self, strategy):
+        """Define a estratégia de distribuição"""
+        self.distribution_strategy = strategy
+    
+    def get_target_computer(self, process=None):
+        """Retorna a CPU alvo para o processo"""
+        if self.distribution_strategy == "round_robin":
+            return self._round_robin()
+        elif self.distribution_strategy == "least_loaded":
+            return self._least_loaded()
+        else:
+            return self._round_robin()
+    
+    def _round_robin(self):
+        """Distribuição round-robin entre CPUs"""
+        computer = self.computers[self.current_index]
+        self.current_index = (self.current_index + 1) % len(self.computers)
+        return computer
+    
+    def _least_loaded(self):
+        """Retorna a CPU com menor carga (fila + processamento)"""
+        return min(self.computers, key=lambda cpu: 
+                  cpu.queue_length + (0 if cpu.is_idle else 1))
+    
+    def get_system_load(self):
+        """Retorna informações de carga do sistema"""
+        load_info = {}
+        for computer in self.computers:
+            load_info[computer.name] = {
+                'queue_length': computer.queue_length,
+                'is_processing': not computer.is_idle,
+                'is_stopped': computer.is_stopped
+            }
+        return load_info
+
 class ConnectionSystem:
-    def __init__(self, generator, computer):
+    def __init__(self, generator, computers):
         self.generator = generator
-        self.computer = computer
+        self.computers = computers if isinstance(computers, list) else [computers]
+        self.load_balancer = LoadBalancer(self.computers)
         
         # Filas do sistema
         self.input_queue: List[Process] = []      # Fila de entrada
         self.transit_processes: List[Process] = [] # Processos em trânsito
-        self.cpu_queue: List[Process] = []        # Fila da CPU
         
         self.transport_speed = TRANSPORT_SPEED
         self.max_capacity = MAX_CONNECTION_CAPACITY
         
-        # Pontos de conexão
-        self.start_point = generator.get_center()
-        self.end_point = computer.get_center()
+        # Mapeamento de processos para CPUs alvo
+        self.process_targets = {}  # process_id -> computer
         
-        # Calcular direção
-        self._calculate_direction()
+        # Calcular direções para cada CPU
+        self.computer_directions = {}
+        self._calculate_all_directions()
     
-    def _calculate_direction(self) -> None:
-        """Calcula a direção e normaliza o vetor"""
-        dx = self.end_point[0] - self.start_point[0]
-        dy = self.end_point[1] - self.start_point[1]
-        length = (dx**2 + dy**2)**0.5
+    def _calculate_all_directions(self):
+        """Calcula direções para todas as CPUs"""
+        start_point = self.generator.get_center()
         
-        if length > 0:
-            self.direction_x = dx / length
-            self.direction_y = dy / length
-            self.length = length
-        else:
-            self.direction_x = self.direction_y = 0
-            self.length = 0
+        for computer in self.computers:
+            end_point = computer.get_center()
+            dx = end_point[0] - start_point[0]
+            dy = end_point[1] - start_point[1]
+            length = (dx**2 + dy**2)**0.5
+            
+            if length > 0:
+                self.computer_directions[computer] = {
+                    'dx': dx / length,
+                    'dy': dy / length,
+                    'length': length,
+                    'end_point': end_point
+                }
+            else:
+                self.computer_directions[computer] = {
+                    'dx': 0, 'dy': 0, 'length': 0, 'end_point': end_point
+                }
     
     def add_process(self, process: Process) -> bool:
         """Adiciona um processo ao sistema se houver capacidade"""
         if self.total_processes < self.max_capacity:
-            process.x, process.y = self.start_point
+            # Escolhe a CPU alvo usando o balanceador de carga
+            target_computer = self.load_balancer.get_target_computer(process)
+            self.process_targets[process.id] = target_computer
+            
+            process.x, process.y = self.generator.get_center()
             process.state = ProcessState.IN_QUEUE
             self.input_queue.append(process)
             return True
@@ -50,9 +105,12 @@ class ConnectionSystem:
     @property
     def total_processes(self) -> int:
         """Total de processos em todas as filas"""
-        return (len(self.input_queue) + 
-                len(self.transit_processes) + 
-                len(self.cpu_queue))
+        total = len(self.input_queue) + len(self.transit_processes)
+        for computer in self.computers:
+            total += len(computer.queue)
+            if computer.current_process and computer.current_process.state == ProcessState.PROCESSING:
+                total += 1
+        return total
     
     @property
     def has_capacity(self) -> bool:
@@ -63,12 +121,12 @@ class ConnectionSystem:
         """Atualiza todo o fluxo do sistema"""
         self._move_from_input_to_transit()
         self._update_transit_processes()
-        self._process_cpu_queue()
+        self._process_cpu_queues()
         self._update_visual_positions()
     
     def _move_from_input_to_transit(self) -> None:
         """Move processos da fila de entrada para trânsito"""
-        if self.input_queue and len(self.transit_processes) < 5:
+        if self.input_queue and len(self.transit_processes) < 8:  # Aumentado para múltiplas CPUs
             process = self.input_queue.pop(0)
             process.state = ProcessState.IN_TRANSIT
             self.transit_processes.append(process)
@@ -79,34 +137,45 @@ class ConnectionSystem:
         
         for process in self.transit_processes[:]:
             if process.state != ProcessState.PROCESSING:
-                # Movimento
-                process.x += self.direction_x * self.transport_speed
-                process.y += self.direction_y * self.transport_speed
+                # Obter CPU alvo e direção
+                target_computer = self.process_targets.get(process.id)
+                if not target_computer:
+                    continue
+                    
+                direction_info = self.computer_directions.get(target_computer)
+                if not direction_info:
+                    continue
+                
+                # Movimento em direção à CPU alvo
+                process.x += direction_info['dx'] * self.transport_speed
+                process.y += direction_info['dy'] * self.transport_speed
                 
                 # Verificar chegada
-                if self._distance_to_end(process) <= self.transport_speed:
-                    process.x, process.y = self.end_point
-                    arrived_processes.append(process)
+                if self._distance_to_computer(process, target_computer) <= self.transport_speed:
+                    process.x, process.y = direction_info['end_point']
+                    arrived_processes.append((process, target_computer))
                     self.transit_processes.remove(process)
         
         # Processar chegadas
-        for process in arrived_processes:
-            if self.computer.is_idle:
-                self.computer.start_processing(process)
+        for process, target_computer in arrived_processes:
+            if target_computer.is_idle and not target_computer.is_stopped:
+                target_computer.start_processing(process)
             else:
-                process.enter_cpu_queue()  # Set queue entry time
-                self.cpu_queue.append(process)
+                target_computer.add_to_queue(process)
     
-    def _process_cpu_queue(self) -> None:
-        """Processa a fila da CPU"""
-        if self.computer.is_idle and self.cpu_queue:
-            next_process = self.cpu_queue.pop(0)
-            self.computer.start_processing(next_process)
+    def _process_cpu_queues(self) -> None:
+        """Processa as filas de todas as CPUs"""
+        for computer in self.computers:
+            if computer.is_idle and not computer.is_stopped and computer.queue:
+                next_process = computer.get_next_process()
+                if next_process:
+                    computer.start_processing(next_process)
     
     def _update_visual_positions(self) -> None:
         """Atualiza posições visuais das filas"""
         self._update_input_queue_positions()
-        self._update_cpu_queue_positions()
+        for computer in self.computers:
+            computer.update_queue_positions()
     
     def _update_input_queue_positions(self) -> None:
         """Posiciona processos na fila de entrada"""
@@ -114,62 +183,69 @@ class ConnectionSystem:
             if process.state == ProcessState.IN_QUEUE:
                 offset_x = -30 - (i * 25)
                 offset_y = -20 + (i % 3) * 15
-                process.x = self.start_point[0] + offset_x
-                process.y = self.start_point[1] + offset_y
+                process.x = self.generator.get_center()[0] + offset_x
+                process.y = self.generator.get_center()[1] + offset_y
     
-    def _update_cpu_queue_positions(self) -> None:
-        """Posiciona processos na fila da CPU"""
-        cpu_x, cpu_y = self.computer.get_center()
-        for i, process in enumerate(self.cpu_queue):
-            if process.state == ProcessState.WAITING_CPU:
-                process.x = cpu_x - 60 - (i * 40)
-                process.y = cpu_y
-    
-    def _distance_to_end(self, process: Process) -> float:
-        """Calcula distância do processo até o final"""
-        dx = self.end_point[0] - process.x
-        dy = self.end_point[1] - process.y
+    def _distance_to_computer(self, process: Process, computer) -> float:
+        """Calcula distância do processo até a CPU alvo"""
+        end_point = self.computer_directions[computer]['end_point']
+        dx = end_point[0] - process.x
+        dy = end_point[1] - process.y
         return (dx**2 + dy**2)**0.5
     
     def draw(self, screen: pygame.Surface) -> None:
         """Desenha todo o sistema de conexão"""
-        self._draw_connection_line(screen)
-        self._draw_arrow(screen)
+        self._draw_connection_lines(screen)
+        self._draw_arrows(screen)
         self._draw_capacity_indicator(screen)
         self._draw_all_processes(screen)
     
-    def _draw_connection_line(self, screen: pygame.Surface) -> None:
-        """Desenha a linha de conexão principal"""
-        pygame.draw.line(screen, Colors.WHITE, self.start_point, self.end_point, 4)
+    def _draw_connection_lines(self, screen: pygame.Surface) -> None:
+        """Desenha as linhas de conexão para todas as CPUs"""
+        start_point = self.generator.get_center()
+        
+        for computer in self.computers:
+            end_point = computer.get_center()
+            # Usar a cor da CPU para a linha de conexão
+            line_color = computer.base_color
+            pygame.draw.line(screen, line_color, start_point, end_point, 3)
     
-    def _draw_arrow(self, screen: pygame.Surface) -> None:
-        """Desenha seta indicando direção"""
-        arrow_size = 10
-        mid_x = (self.start_point[0] + self.end_point[0]) / 2
-        mid_y = (self.start_point[1] + self.end_point[1]) / 2
+    def _draw_arrows(self, screen: pygame.Surface) -> None:
+        """Desenha setas indicando direção para cada CPU"""
+        arrow_size = 8
+        start_point = self.generator.get_center()
         
-        tip = (mid_x + self.direction_x * arrow_size, 
-               mid_y + self.direction_y * arrow_size)
-        
-        perp_x = -self.direction_y
-        perp_y = self.direction_x
-        
-        left = (mid_x + perp_x * arrow_size/2, mid_y + perp_y * arrow_size/2)
-        right = (mid_x - perp_x * arrow_size/2, mid_y - perp_y * arrow_size/2)
-        
-        pygame.draw.polygon(screen, Colors.WHITE, [tip, left, right])
+        for computer in self.computers:
+            direction_info = self.computer_directions.get(computer)
+            if not direction_info:
+                continue
+                
+            # Ponto no meio do caminho
+            mid_x = start_point[0] + direction_info['dx'] * direction_info['length'] * 0.5
+            mid_y = start_point[1] + direction_info['dy'] * direction_info['length'] * 0.5
+            
+            tip = (mid_x + direction_info['dx'] * arrow_size, 
+                   mid_y + direction_info['dy'] * arrow_size)
+            
+            perp_x = -direction_info['dy']
+            perp_y = direction_info['dx']
+            
+            left = (mid_x + perp_x * arrow_size/2, mid_y + perp_y * arrow_size/2)
+            right = (mid_x - perp_x * arrow_size/2, mid_y - perp_y * arrow_size/2)
+            
+            pygame.draw.polygon(screen, computer.base_color, [tip, left, right])
     
     def _draw_capacity_indicator(self, screen: pygame.Surface) -> None:
         """Desenha indicador de capacidade"""
         font = pygame.font.SysFont(None, 20)
         capacity_text = font.render(f"Capacidade: {self.total_processes}/{self.max_capacity}", True, Colors.WHITE)
-        screen.blit(capacity_text, (self.start_point[0] - 50, self.start_point[1] - 40))
+        screen.blit(capacity_text, (self.generator.get_center()[0] - 50, self.generator.get_center()[1] - 40))
         
         # Barra de progresso
         bar_width = 100
         bar_height = 8
-        bar_x = self.start_point[0] - 50
-        bar_y = self.start_point[1] - 25
+        bar_x = self.generator.get_center()[0] - 50
+        bar_y = self.generator.get_center()[1] - 25
         
         pygame.draw.rect(screen, Colors.DARK_GRAY, (bar_x, bar_y, bar_width, bar_height))
         
@@ -179,12 +255,26 @@ class ConnectionSystem:
                     else Colors.RED)
         
         pygame.draw.rect(screen, bar_color, (bar_x, bar_y, bar_width * percentage, bar_height))
+        
+        # Informações de carga das CPUs
+        load_info = self.load_balancer.get_system_load()
+        load_y = bar_y + 15
+        for computer_name, info in load_info.items():
+            status = "PARADA" if info['is_stopped'] else "ATIVA"
+            load_text = font.render(f"{computer_name}: {info['queue_length']} na fila ({status})", 
+                                  True, Colors.WHITE)
+            screen.blit(load_text, (bar_x, load_y))
+            load_y += 15
     
     def _draw_all_processes(self, screen: pygame.Surface) -> None:
         """Desenha todos os processos visíveis"""
-        all_processes = (self.input_queue + self.transit_processes + 
-                        self.cpu_queue)
-        
-        for process in all_processes:
+        # Processos na fila de entrada e em trânsito
+        for process in self.input_queue + self.transit_processes:
             if process.state != ProcessState.PROCESSING:
                 process.draw(screen)
+        
+        # Processos nas filas das CPUs
+        for computer in self.computers:
+            for process in computer.queue:
+                if process.state != ProcessState.PROCESSING:
+                    process.draw(screen)
