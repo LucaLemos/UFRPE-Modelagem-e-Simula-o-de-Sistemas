@@ -17,6 +17,7 @@ class Computer:
         self.current_process = None
         self.is_stopped = False  # New flag to control if computer is stopped
         self.pre_stop_state = None  # To remember state before stopping
+        self.processing_time_ms = 2000  # Default: 2 seconds (now adjustable)
     
     def is_clicked(self, pos):
         """Verifica se a CPU foi clicada"""
@@ -43,6 +44,12 @@ class Computer:
         if self.is_stopped:
             self.is_stopped = False
             print("CPU retomada")
+    
+    def set_processing_time(self, seconds):
+        """Define o tempo de processamento em segundos"""
+        if seconds > 0:
+            self.processing_time_ms = int(seconds * 1000)  # Convert to milliseconds
+            print(f"Tempo de processamento alterado para: {seconds:.2f} segundos")
     
     @property
     def color(self) -> tuple:
@@ -82,6 +89,8 @@ class Computer:
         if not self.is_stopped:
             self.current_process = process
             self.is_idle = False
+            # Set the processing time for the process
+            process.processing_time_ms = self.processing_time_ms
             process.start_processing()
     
     def check_processing_complete(self) -> bool:
