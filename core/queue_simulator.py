@@ -23,17 +23,18 @@ class QueueSimulator:
         self.max_queue_time_seconds = 10.0  # Default: 10 seconds maximum queue time
         self.is_auto_generation_enabled = True  # Sempre ativo
         self.is_generator_blocked = False
+        self.timed_out_processes = 0
 
         # Sistema de pontuação (NOVO)
         self.score = 0
     
     @property
     def generation_interval(self) -> int:
-        return GENERATION_FREQUENCIES[self.current_frequency_index]["value"]
         self.timed_out_processes = 0  # Counter for timed out processes
         
         # Passar referências dos componentes para o InfoPanel
         self.info_panel.set_component_references(self.computer, self.generator, self)
+        return GENERATION_FREQUENCIES[self.current_frequency_index]["value"]
     
     def handle_click(self, pos):
         """Lida com cliques do mouse nos componentes"""
