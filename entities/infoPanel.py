@@ -65,16 +65,28 @@ class InfoPanel:
         self.processing_time_input_color = Colors.WHITE
         self.processing_time_input_active_color = Colors.LIGHT_GREEN
 
-    def update_info(self, computer, connection, processes, current_interval_seconds=None):
+        # Max queue time input properties (in seconds) - for computer
+        self.max_queue_time_input_rect = pygame.Rect(
+            self.x + 20,
+            self.y + self.height - 120,
+            self.width - 40,
+            30
+        )
+        self.max_queue_time_input_text = "10.0"  # Default value (10 seconds)
+        self.is_max_queue_time_input_active = False
+        self.max_queue_time_input_color = Colors.WHITE
+        self.max_queue_time_input_active_color = Colors.LIGHT_GREEN
+
+    def update_info(self, computer, connection, processes, current_interval_seconds=None, max_queue_time_seconds=None, timed_out_processes=0):
         """Atualiza as informações exibidas no painel"""
         if self.selected_component == "computer":
-            self._show_computer_info(computer, connection)
+            self._show_computer_info(computer, connection, max_queue_time_seconds, timed_out_processes)
         elif self.selected_component == "generator":
             self._show_generator_info(connection, computer, current_interval_seconds)
         else:
-            self._show_general_info(computer, connection, processes, current_interval_seconds)
+            self._show_general_info(computer, connection, processes, current_interval_seconds, max_queue_time_seconds, timed_out_processes)
 
-    def _show_general_info(self, computer, connection, processes, current_interval_seconds):
+    def _show_general_info(self, computer, connection, processes, current_interval_seconds, max_queue_time_seconds, timed_out_processes):
         """Mostra informações gerais do sistema"""
         cpu_status = "OCIOSA" if computer.is_idle else f"Processando P{computer.current_process.id}"
         cpu_stopped = "(PARADA)" if getattr(computer, 'is_stopped', False) else ""
@@ -89,15 +101,17 @@ class InfoPanel:
             f"Gerador: {generator_stopped}",
             f"Intervalo: {current_interval_seconds:.2f} segundos",
             f"Processamento: {computer.processing_time_ms/1000:.2f} segundos",
+            f"Tempo máximo fila: {max_queue_time_seconds:.2f} segundos",
             f"Fila: {fila_status}",
             f"Concluídos: {concluidos}",
+            f"Expirados: {timed_out_processes}",
             f"Capacidade: {connection.total_processes}/{connection.max_capacity}",
             "",
             "Clique em um componente",
             "para mais informações e controles"
         ]
 
-    def _show_computer_info(self, computer, connection):
+    def _show_computer_info(self, computer, connection, max_queue_time_seconds, timed_out_processes):
         """Mostra informações detalhadas da CPU"""
         status = "PROCESSANDO" if not computer.is_idle else "OCIOSO"
         processo_atual = f"P{computer.current_process.id}" if computer.current_process else "Nenhum"
@@ -110,6 +124,8 @@ class InfoPanel:
             f"Processo atual: {processo_atual}",
             f"Fila de CPU: {len(connection.cpu_queue)} processos",
             f"Tempo de processamento: {computer.processing_time_ms/1000:.2f} segundos",
+            f"Tempo máximo na fila: {max_queue_time_seconds:.2f} segundos",
+            f"Processos expirados: {timed_out_processes}",
             "",
             "Estatísticas:",
             f"- Processos na fila: {len(connection.cpu_queue)}",
@@ -119,6 +135,7 @@ class InfoPanel:
             "Controles:",
             f"- Botão {'LIGAR' if is_stopped else 'PARAR'} para {'retomar' if is_stopped else 'pausar'} processamento",
             "- Digite o tempo de processamento (em segundos) abaixo",
+            "- Digite o tempo máximo na fila (em segundos) abaixo",
             "- Enter para aplicar, ESC para cancelar",
             "- Clique no X para voltar"
         ]
@@ -167,20 +184,33 @@ class InfoPanel:
         """Verifica se o campo de entrada de tempo de processamento foi clicado"""
         return self.processing_time_input_rect.collidepoint(pos)
 
+    def is_max_queue_time_input_clicked(self, pos):
+        """Verifica se o campo de entrada de tempo máximo de fila foi clicado"""
+        return self.max_queue_time_input_rect.collidepoint(pos)
+
     def activate_interval_input(self):
         """Ativa o campo de entrada de intervalo"""
         self.is_interval_input_active = True
         self.is_processing_time_input_active = False
+        self.is_max_queue_time_input_active = False
 
     def activate_processing_time_input(self):
         """Ativa o campo de entrada de tempo de processamento"""
         self.is_processing_time_input_active = True
         self.is_interval_input_active = False
+        self.is_max_queue_time_input_active = False
+
+    def activate_max_queue_time_input(self):
+        """Ativa o campo de entrada de tempo máximo de fila"""
+        self.is_max_queue_time_input_active = True
+        self.is_interval_input_active = False
+        self.is_processing_time_input_active = False
 
     def deactivate_all_inputs(self):
         """Desativa todos os campos de entrada"""
         self.is_interval_input_active = False
         self.is_processing_time_input_active = False
+        self.is_max_queue_time_input_active = False
 
     def add_character_to_interval_input(self, char):
         """Adiciona um caractere ao campo de entrada de intervalo"""
@@ -200,6 +230,15 @@ class InfoPanel:
                 return
             self.processing_time_input_text += char
 
+    def add_character_to_max_queue_time_input(self, char):
+        """Adiciona um caractere ao campo de entrada de tempo máximo de fila"""
+        # Allow digits, decimal point, and backspace is handled separately
+        if char.isdigit() or char == '.':
+            # Only allow one decimal point
+            if char == '.' and '.' in self.max_queue_time_input_text:
+                return
+            self.max_queue_time_input_text += char
+
     def remove_character_from_interval_input(self):
         """Remove o último caractere do campo de entrada de intervalo"""
         if len(self.interval_input_text) > 0:
@@ -210,6 +249,11 @@ class InfoPanel:
         if len(self.processing_time_input_text) > 0:
             self.processing_time_input_text = self.processing_time_input_text[:-1]
 
+    def remove_character_from_max_queue_time_input(self):
+        """Remove o último caractere do campo de entrada de tempo máximo de fila"""
+        if len(self.max_queue_time_input_text) > 0:
+            self.max_queue_time_input_text = self.max_queue_time_input_text[:-1]
+
     def clear_interval_input(self):
         """Limpa o campo de entrada de intervalo"""
         self.interval_input_text = ""
@@ -217,6 +261,10 @@ class InfoPanel:
     def clear_processing_time_input(self):
         """Limpa o campo de entrada de tempo de processamento"""
         self.processing_time_input_text = ""
+
+    def clear_max_queue_time_input(self):
+        """Limpa o campo de entrada de tempo máximo de fila"""
+        self.max_queue_time_input_text = ""
 
     def get_interval_input_value(self):
         """Obtém o valor do campo de entrada de intervalo como float (seconds)"""
@@ -231,6 +279,13 @@ class InfoPanel:
             return float(self.processing_time_input_text) if self.processing_time_input_text else 2.0
         except ValueError:
             return 2.0
+
+    def get_max_queue_time_input_value(self):
+        """Obtém o valor do campo de entrada de tempo máximo de fila como float (seconds)"""
+        try:
+            return float(self.max_queue_time_input_text) if self.max_queue_time_input_text else 10.0
+        except ValueError:
+            return 10.0
 
     def update_button_hover(self, pos):
         """Atualiza o estado de hover dos botões"""
@@ -326,24 +381,42 @@ class InfoPanel:
                 screen.blit(label_text, (self.interval_input_rect.x, self.interval_input_rect.y - 25))
             
             elif self.selected_component == "computer":
-                # Determinar cor do campo de entrada
-                input_color = self.processing_time_input_active_color if self.is_processing_time_input_active else self.processing_time_input_color
+                # Determinar cor do campo de entrada de tempo de processamento
+                processing_input_color = self.processing_time_input_active_color if self.is_processing_time_input_active else self.processing_time_input_color
                 
-                # Desenhar campo de entrada
-                pygame.draw.rect(screen, input_color, self.processing_time_input_rect)
+                # Desenhar campo de entrada de tempo de processamento
+                pygame.draw.rect(screen, processing_input_color, self.processing_time_input_rect)
                 pygame.draw.rect(screen, Colors.BLACK, self.processing_time_input_rect, 2)
                 
                 # Desenhar texto do campo de entrada
                 input_font = pygame.font.SysFont(None, 22)
-                input_text = input_font.render(self.processing_time_input_text, True, Colors.BLACK)
+                processing_input_text = input_font.render(self.processing_time_input_text, True, Colors.BLACK)
                 
                 # Calcular posição do texto (centralizado verticalmente)
-                text_y = self.processing_time_input_rect.y + (self.processing_time_input_rect.height - input_text.get_height()) // 2
-                screen.blit(input_text, (self.processing_time_input_rect.x + 10, text_y))
+                text_y = self.processing_time_input_rect.y + (self.processing_time_input_rect.height - processing_input_text.get_height()) // 2
+                screen.blit(processing_input_text, (self.processing_time_input_rect.x + 10, text_y))
                 
                 # Desenhar label
-                label_text = input_font.render("Tempo processamento (segundos):", True, Colors.BLACK)
-                screen.blit(label_text, (self.processing_time_input_rect.x, self.processing_time_input_rect.y - 25))
+                processing_label_text = input_font.render("Tempo processamento (segundos):", True, Colors.BLACK)
+                screen.blit(processing_label_text, (self.processing_time_input_rect.x, self.processing_time_input_rect.y - 25))
+                
+                # Determinar cor do campo de entrada de tempo máximo de fila
+                queue_input_color = self.max_queue_time_input_active_color if self.is_max_queue_time_input_active else self.max_queue_time_input_color
+                
+                # Desenhar campo de entrada de tempo máximo de fila
+                pygame.draw.rect(screen, queue_input_color, self.max_queue_time_input_rect)
+                pygame.draw.rect(screen, Colors.BLACK, self.max_queue_time_input_rect, 2)
+                
+                # Desenhar texto do campo de entrada
+                queue_input_text = input_font.render(self.max_queue_time_input_text, True, Colors.BLACK)
+                
+                # Calcular posição do texto (centralizado verticalmente)
+                queue_text_y = self.max_queue_time_input_rect.y + (self.max_queue_time_input_rect.height - queue_input_text.get_height()) // 2
+                screen.blit(queue_input_text, (self.max_queue_time_input_rect.x + 10, queue_text_y))
+                
+                # Desenhar label
+                queue_label_text = input_font.render("Tempo máximo fila (segundos):", True, Colors.BLACK)
+                screen.blit(queue_label_text, (self.max_queue_time_input_rect.x, self.max_queue_time_input_rect.y - 25))
     
     def set_component_references(self, computer, generator, simulator=None):
         """Define referências aos componentes para verificar estado"""
@@ -358,3 +431,7 @@ class InfoPanel:
         # Set initial processing time text based on computer's current value
         if computer and hasattr(computer, 'processing_time_ms'):
             self.processing_time_input_text = f"{computer.processing_time_ms/1000:.2f}"
+        
+        # Set initial max queue time text based on simulator's current value
+        if simulator and hasattr(simulator, 'max_queue_time_seconds'):
+            self.max_queue_time_input_text = f"{simulator.max_queue_time_seconds:.2f}"

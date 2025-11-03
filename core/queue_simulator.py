@@ -20,6 +20,7 @@ class QueueSimulator:
         self.processes = []
         self.time_since_last_process = 0.0  # Now in seconds
         self.current_interval_seconds = 1.0  # Default: 1 second
+        self.max_queue_time_seconds = 10.0  # Default: 10 seconds maximum queue time
         self.is_auto_generation_enabled = True  # Sempre ativo
         self.is_generator_blocked = False
 
@@ -29,6 +30,7 @@ class QueueSimulator:
     @property
     def generation_interval(self) -> int:
         return GENERATION_FREQUENCIES[self.current_frequency_index]["value"]
+        self.timed_out_processes = 0  # Counter for timed out processes
         
         # Passar referências dos componentes para o InfoPanel
         self.info_panel.set_component_references(self.computer, self.generator, self)
@@ -56,6 +58,12 @@ class QueueSimulator:
         if (self.info_panel.selected_component == "computer" and 
             self.info_panel.is_processing_time_input_clicked(pos)):
             self.info_panel.activate_processing_time_input()
+            return
+        
+        # Verifica se o campo de tempo máximo de fila foi clicado
+        if (self.info_panel.selected_component == "computer" and 
+            self.info_panel.is_max_queue_time_input_clicked(pos)):
+            self.info_panel.activate_max_queue_time_input()
             return
         
         # Depois verifica os outros componentes
@@ -133,6 +141,37 @@ class QueueSimulator:
                 # Adiciona o caractere se for um dígito ou ponto decimal
                 if event.unicode.isdigit() or event.unicode == '.':
                     self.info_panel.add_character_to_processing_time_input(event.unicode)
+        
+        # Handle max queue time input
+        elif (self.info_panel.selected_component == "computer" and 
+              self.info_panel.is_max_queue_time_input_active):
+            
+            if event.key == pygame.K_RETURN:
+                # Aplica o tempo máximo de fila digitado
+                new_max_queue_time = self.info_panel.get_max_queue_time_input_value()
+                if new_max_queue_time > 0:
+                    self.max_queue_time_seconds = new_max_queue_time
+                    print(f"Tempo máximo de fila alterado para: {new_max_queue_time:.2f} segundos")
+                self.info_panel.deactivate_all_inputs()
+            
+            elif event.key == pygame.K_ESCAPE:
+                # Cancela a edição
+                self.info_panel.deactivate_all_inputs()
+                # Restaura o valor atual
+                self.info_panel.max_queue_time_input_text = f"{self.max_queue_time_seconds:.2f}"
+            
+            elif event.key == pygame.K_BACKSPACE:
+                # Remove o último caractere
+                self.info_panel.remove_character_from_max_queue_time_input()
+            
+            elif event.key == pygame.K_DELETE:
+                # Limpa o campo
+                self.info_panel.clear_max_queue_time_input()
+            
+            else:
+                # Adiciona o caractere se for um dígito ou ponto decimal
+                if event.unicode.isdigit() or event.unicode == '.':
+                    self.info_panel.add_character_to_max_queue_time_input(event.unicode)
     
     def _handle_stop_button_click(self):
         """Lida com o clique no botão de parar/iniciar"""
@@ -163,8 +202,11 @@ class QueueSimulator:
         # Atualizar sistema de conexão (controla todo o fluxo)
         self.connection.update()
         
+        # Verificar timeouts na fila da CPU
+        self._check_queue_timeouts()
+        
         # Atualizar InfoPanel com informações atualizadas
-        self.info_panel.update_info(self.computer, self.connection, self.processes, self.current_interval_seconds)
+        self.info_panel.update_info(self.computer, self.connection, self.processes, self.current_interval_seconds, self.max_queue_time_seconds, self.timed_out_processes)
         
         # Verificar conclusão de processamento (a menos que a CPU esteja parada)
         if not self.computer.is_idle and not self.computer.is_stopped:
@@ -194,6 +236,22 @@ class QueueSimulator:
                     if self.connection.add_process(process):
                         print(f"Processo {process.id} criado automaticamente")
                     self.time_since_last_process = 0.0
+    
+    def _check_queue_timeouts(self):
+        """Verifica processos na fila da CPU que excederam o tempo máximo de espera"""
+        current_time = pygame.time.get_ticks()
+        
+        for process in self.connection.cpu_queue[:]:
+            if process.state == ProcessState.WAITING_CPU:
+                # Calculate time spent in queue
+                time_in_queue = (current_time - process.queue_entry_time) / 1000.0  # Convert to seconds
+                
+                if time_in_queue >= self.max_queue_time_seconds:
+                    print(f"Processo {process.id} excedeu o tempo máximo de fila ({time_in_queue:.2f}s) e foi removido")
+                    self.connection.cpu_queue.remove(process)
+                    process.is_active = False
+                    process.state = ProcessState.COMPLETED
+                    self.timed_out_processes += 1
     
     def _cleanup_completed_processes(self) -> None:
         """Remove processos finalizados do sistema"""
@@ -280,8 +338,10 @@ class QueueSimulator:
             print(f"Número médio de clientes na fila (Lq): {Lq:.3f}")
             print(f"Tempo médio no sistema (W): {W:.3f} segundos")
             print(f"Tempo médio na fila (Wq): {Wq:.3f} segundos")
+            print(f"Processos expirados na fila: {self.timed_out_processes}")
         else:
             print("Sistema instável: a taxa de chegada é maior ou igual à taxa de serviço.")
             print(f"Taxa de chegada (lambda): {lambda_rate:.3f} processos/segundo")
             print(f"Taxa de serviço (mu): {mu_rate:.3f} processos/segundo")
             print(f"Utilização do sistema (rho): {rho:.3f}")
+            print(f"Processos expirados na fila: {self.timed_out_processes}")

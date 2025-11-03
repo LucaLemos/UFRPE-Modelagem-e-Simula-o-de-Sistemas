@@ -18,6 +18,9 @@ class Process:
         # Tempo de processamento
         self.processing_time_ms = 2000
         self.processing_start_time = None
+        
+        # Tempo de entrada na fila da CPU (para controle de timeout)
+        self.queue_entry_time = None
     
     @property
     def color(self) -> tuple:
@@ -51,11 +54,23 @@ class Process:
             
             time_text = font.render(f"{seconds:.1f}s", True, Colors.WHITE)
             screen.blit(time_text, (self.x - 15, self.y + 15))
+        
+        # Tempo na fila se estiver esperando
+        elif self.state == ProcessState.WAITING_CPU and self.queue_entry_time:
+            time_in_queue = (pygame.time.get_ticks() - self.queue_entry_time) / 1000.0
+            queue_time_text = font.render(f"{time_in_queue:.1f}s", True, Colors.WHITE)
+            screen.blit(queue_time_text, (self.x - 15, self.y + 15))
     
     def start_processing(self) -> None:
         """Inicia o processamento na CPU"""
         self.state = ProcessState.PROCESSING
         self.processing_start_time = pygame.time.get_ticks()
+        self.queue_entry_time = None  # Reset queue time when processing starts
+    
+    def enter_cpu_queue(self):
+        """Marca o tempo de entrada na fila da CPU"""
+        self.queue_entry_time = pygame.time.get_ticks()
+        self.state = ProcessState.WAITING_CPU
     
     def is_processing_complete(self) -> bool:
         """Verifica se o processamento foi concluído"""
