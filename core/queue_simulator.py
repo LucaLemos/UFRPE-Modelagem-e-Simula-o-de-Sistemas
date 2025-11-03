@@ -262,7 +262,7 @@ class QueueSimulator:
     def _add_score(self):
         """Adiciona pontos quando um processo é completado com sucesso"""
         self.score += 1
-        print(f"✅ Processo completado! Pontuação: {self.score}")
+        print(f"[SUCESSO] Processo completado! Pontuacao: {self.score}")  # Changed emoji to text
     
     def _handle_auto_generation(self) -> None:
         """Gerencia a geração automática de processos"""
@@ -344,7 +344,7 @@ class QueueSimulator:
         font_small = pygame.font.SysFont(None, 18)
         
         # Título
-        title_text = font_small.render("PONTUAÇÃO", True, Colors.WHITE)
+        title_text = font_small.render("PONTUACAO", True, Colors.WHITE)  # Removed accent
         screen.blit(title_text, (score_x + score_width//2 - title_text.get_width()//2, score_y + 10))
         
         # Valor da pontuação
@@ -380,10 +380,10 @@ class QueueSimulator:
         rho = lambda_rate / (c * mu_rate)  # utilização do sistema
         
         print(f"=== SISTEMA M/M/{c} ===")
-        print(f"Número de CPUs ativas: {c}")
+        print(f"Numero de CPUs ativas: {c}")  # Removed accent
         print(f"Taxa de chegada (lambda): {lambda_rate:.3f} processos/segundo")
-        print(f"Taxa de serviço média (mu): {mu_rate:.3f} processos/segundo")
-        print(f"Utilização do sistema (rho): {rho:.3f}")
+        print(f"Taxa de servico media (mu): {mu_rate:.3f} processos/segundo")  # Removed accent
+        print(f"Utilizacao do sistema (rho): {rho:.3f}")  # Removed accent
         
         # Informações individuais de cada CPU
         for i, computer in enumerate(self.computers):
@@ -391,10 +391,10 @@ class QueueSimulator:
             print(f"CPU {i+1}: {status}, Fila: {len(computer.queue)}, Tempo processamento: {computer.processing_time_ms/1000:.2f}s")
         
         print(f"Processos expirados na fila: {self.timed_out_processes}")
-        print(f"Pontuação: {self.score}")
+        print(f"Pontuacao: {self.score}")  # Removed accent
         
         if rho < 1:
             # Cálculos simplificados para M/M/c
-            print("Sistema estável")
+            print("Sistema estavel")  # Removed accent
         else:
-            print("Sistema instável: a taxa de chegada é maior que a capacidade total de serviço")
+            print("Sistema instavel: a taxa de chegada e maior que a capacidade total de servico")  # Removed accents

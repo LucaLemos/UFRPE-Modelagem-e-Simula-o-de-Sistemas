@@ -12,69 +12,100 @@ class InfoPanel:
         )
 
         self.info_lines = []
-        self.background_color = Colors.WHITE
-        self.selected_component = None
+        self.right_info_lines = []
+        self.selected_component = None  # Initialize the attribute
+        
+        # Modern color scheme
+        self.background_color = (30, 30, 40)  # Dark blue-gray
+        self.accent_color = (70, 130, 180)    # Steel blue
+        self.secondary_color = (50, 60, 80)   # Darker blue-gray
+        self.text_color = (220, 220, 220)     # Light gray
+        self.highlight_color = (100, 180, 255) # Bright blue
+        self.success_color = (80, 200, 120)   # Green for success
+        self.warning_color = (255, 180, 80)   # Orange for warnings
+        self.error_color = (220, 80, 80)      # Red for errors
+        
+        # Title bar properties
+        self.title_bar_height = 40
+        self.title_bar_rect = pygame.Rect(
+            self.x, self.y, self.width, self.title_bar_height
+        )
         
         # Close button properties
-        self.close_button_size = 20
+        self.close_button_size = 24
         self.close_button_rect = pygame.Rect(
-            self.x + self.width - 30, 
-            self.y + 10, 
+            self.x + self.width - 35, 
+            self.y + 8, 
             self.close_button_size, 
             self.close_button_size
         )
-        self.close_button_color = Colors.RED
-        self.close_button_hover_color = (200, 0, 0)
+        self.close_button_color = (220, 80, 80)
+        self.close_button_hover_color = (255, 100, 100)
         self.is_close_button_hovered = False
         
         # Stop/Start button properties
         self.stop_button_rect = pygame.Rect(
             self.x + 20,
-            self.y + self.height - 40,
+            self.y + self.height - 45,
             self.width - 40,
-            30
+            35
         )
-        self.stop_button_color = Colors.RED
-        self.stop_button_start_color = Colors.GREEN
-        self.stop_button_hover_color = (180, 0, 0)
-        self.stop_button_start_hover_color = (0, 180, 0)
+        self.stop_button_color = (220, 80, 80)
+        self.stop_button_start_color = (80, 180, 80)
+        self.stop_button_hover_color = (255, 100, 100)
+        self.stop_button_start_hover_color = (100, 220, 100)
         self.is_stop_button_hovered = False
 
+        # Input fields properties
+        self.input_height = 32
+        self.input_padding = 10
+        
         # Interval input properties (for generator)
         self.interval_input_rect = pygame.Rect(
             self.x + 20,
-            self.y + self.height - 80,
+            self.y + self.height - 85,
             self.width - 40,
-            30
+            self.input_height
         )
         self.interval_input_text = "1.0"
         self.is_interval_input_active = False
-        self.interval_input_color = Colors.WHITE
-        self.interval_input_active_color = Colors.LIGHT_GREEN
+        self.interval_input_color = self.secondary_color
+        self.interval_input_active_color = (60, 80, 100)
 
         # Processing time input properties (for computers)
         self.processing_time_input_rect = pygame.Rect(
             self.x + 20,
-            self.y + self.height - 80,
+            self.y + self.height - 85,
             self.width - 40,
-            30
+            self.input_height
         )
         self.processing_time_input_text = "2.0"
         self.is_processing_time_input_active = False
-        self.processing_time_input_color = Colors.WHITE
-        self.processing_time_input_active_color = Colors.LIGHT_GREEN
+        self.processing_time_input_color = self.secondary_color
+        self.processing_time_input_active_color = (60, 80, 100)
 
         # Max queue time input properties
         self.max_queue_time_input_rect = pygame.Rect(
             self.x + 20,
-            self.y + self.height - 120,
+            self.y + self.height - 130,
             self.width - 40,
-            30
+            self.input_height
         )
         self.max_queue_time_input_text = "10.0"
         self.is_max_queue_time_input_active = False
-        self.max_queue_time_input_color = Colors.WHITE
-        self.max_queue_time_input_active_color = Colors.LIGHT_GREEN
+        self.max_queue_time_input_color = self.secondary_color
+        self.max_queue_time_input_active_color = (60, 80, 100)
+
+        # Content area
+        self.content_rect = pygame.Rect(
+            self.x,
+            self.y + self.title_bar_height,
+            self.width,
+            self.height - self.title_bar_height - 60
+        )
+
+        # Section dividers
+        self.section_spacing = 10
 
     def update_info(self, computers, connection, processes, current_interval_seconds=None, max_queue_time_seconds=None, timed_out_processes=0):
         """Atualiza as informações exibidas no painel"""
@@ -93,32 +124,97 @@ class InfoPanel:
         total_queue = sum(len(cpu.queue) for cpu in computers)
         processing_cpus = sum(1 for cpu in computers if not cpu.is_idle and not cpu.is_stopped)
         concluidos = sum(1 for p in processes if not p.is_active)
+        
+        # Calculate system efficiency
+        total_capacity = connection.max_capacity
+        current_usage = connection.total_processes
+        usage_percentage = (current_usage / total_capacity) * 100 if total_capacity > 0 else 0
+        
+        # Calculate average queue length
+        avg_queue_length = total_queue / len(computers) if computers else 0
+        
+        # Calculate system load
+        system_load = (processing_cpus / len(computers)) * 100 if computers else 0
 
+        # Calculate success rate safely
+        total_ended = concluidos + timed_out_processes
+        if total_ended > 0:
+            success_rate = (concluidos / total_ended) * 100
+            success_rate_text = f"Taxa de Sucesso: {success_rate:.1f}%"
+            success_rate_color = (self.success_color if success_rate > 90 
+                                else self.warning_color if success_rate > 70 
+                                else self.error_color)
+        else:
+            success_rate_text = "Taxa de Sucesso: 0.0%"
+            success_rate_color = self.text_color
+
+        # Calculate efficiency safely
+        total_created = connection.generator.next_process_id - 1
+        if total_created > 0:
+            efficiency = (concluidos / total_created) * 100
+            efficiency_text = f"Eficiencia: {efficiency:.1f}%"
+            efficiency_color = (self.success_color if efficiency > 80 
+                              else self.warning_color)
+        else:
+            efficiency_text = "Eficiencia: 0.0%"
+            efficiency_color = self.text_color
+
+        # Left panel - Main system info
         self.info_lines = [
-            "=== SISTEMA MULTI-CPU ===",
-            f"CPUs Ativas: {active_cpus}/{len(computers)}",
-            f"CPUs Processando: {processing_cpus}",
-            f"Gerador: {'PARADO' if getattr(connection.generator, 'is_stopped', False) else 'ATIVO'}",
-            f"Intervalo: {current_interval_seconds:.2f} segundos",
-            f"Tempo máximo fila: {max_queue_time_seconds:.2f} segundos",
-            f"Total em filas: {total_queue} processos",
-            f"Concluídos: {concluidos}",
-            f"Expirados: {timed_out_processes}",
-            f"Capacidade: {connection.total_processes}/{connection.max_capacity}",
-            "",
-            "=== CPUs ==="
+            ("=== SISTEMA MULTI-CPU ===", self.accent_color),
+            (f"CPUs Ativas: {active_cpus}/{len(computers)}", self.text_color),
+            (f"CPUs Processando: {processing_cpus}", self.text_color),
+            (f"Gerador: {'PARADO' if getattr(connection.generator, 'is_stopped', False) else 'ATIVO'}", 
+             self.error_color if getattr(connection.generator, 'is_stopped', False) else self.success_color),
+            (f"Intervalo: {current_interval_seconds:.2f} segundos", self.text_color),
+            (f"Tempo max. fila: {max_queue_time_seconds:.2f} segundos", self.text_color),
+            (f"Total em filas: {total_queue} processos", self.text_color),
+            (f"Concluidos: {concluidos}", self.success_color),
+            (f"Expirados: {timed_out_processes}", self.error_color),
+            (f"Capacidade: {connection.total_processes}/{connection.max_capacity}", self.text_color),
+            ("", self.text_color),
+            ("=== CPUs ===", self.accent_color)
         ]
         
         # Adicionar informações de cada CPU
         for i, computer in enumerate(computers):
             status = "PARADA" if computer.is_stopped else "PROCESSANDO" if not computer.is_idle else "OCIOSA"
-            self.info_lines.append(f"CPU {i+1}: {status} (Fila: {len(computer.queue)})")
+            color = self._get_status_color(computer)
+            self.info_lines.append((f"CPU {i+1}: {status} (Fila: {len(computer.queue)})", color))
         
         self.info_lines.extend([
-            "",
-            "Clique em um componente",
-            "para mais informações e controles"
+            ("", self.text_color),
+            ("Clique em um componente", self.highlight_color),
+            ("para mais informacoes e controles", self.highlight_color)
         ])
+        
+        # Right panel - Statistics and performance
+        self.right_info_lines = [
+            ("=== ESTATISTICAS ===", self.accent_color),
+            (f"Uso do Sistema: {usage_percentage:.1f}%", 
+             self.error_color if usage_percentage > 90 else self.warning_color if usage_percentage > 70 else self.success_color),
+            (f"Carga do Sistema: {system_load:.1f}%", 
+             self.success_color if system_load > 70 else self.warning_color if system_load > 30 else self.text_color),
+            (f"Fila Media: {avg_queue_length:.1f}", 
+             self.error_color if avg_queue_length > 5 else self.warning_color if avg_queue_length > 2 else self.success_color),
+            ("", self.text_color),
+            ("=== DESEMPENHO ===", self.accent_color),
+            (success_rate_text, success_rate_color),
+            (f"Processos/s: {1/current_interval_seconds:.2f}" if current_interval_seconds > 0 else "Processos/s: 0.00", self.text_color),
+            (efficiency_text, efficiency_color),
+            ("", self.text_color),
+            ("=== BALANCEAMENTO ===", self.accent_color),
+            (f"Estrategia: {connection.load_balancer.distribution_strategy}", self.highlight_color),
+            (f"Processos Criados: {connection.generator.next_process_id - 1}", self.text_color),
+            (f"Em Transito: {len(connection.transit_processes)}", self.text_color),
+            ("", self.text_color),
+            ("=== DICAS ===", self.accent_color),
+            ("• CPUs verdes = ociosas", self.success_color),
+            ("• CPUs laranjas = processando", self.warning_color),
+            ("• CPUs vermelhas = paradas", self.error_color),
+            ("• Ajuste intervalos para", self.highlight_color),
+            ("  otimizar o sistema", self.highlight_color)
+        ]
 
     def _show_computer_info(self, computer, connection, max_queue_time_seconds, timed_out_processes):
         """Mostra informações detalhadas de uma CPU específica"""
@@ -127,25 +223,58 @@ class InfoPanel:
         is_stopped = getattr(computer, 'is_stopped', False)
         stopped_status = " (PARADA)" if is_stopped else ""
         
+        # Calculate computer efficiency
+        queue_warning = len(computer.queue) > 3
+        processing_efficiency = "ALTA" if computer.processing_time_ms <= 2000 else "MEDIA" if computer.processing_time_ms <= 4000 else "BAIXA"
+        
         self.info_lines = [
-            f"=== {computer.name} ===",
-            f"Status: {status}{stopped_status}",
-            f"Processo atual: {processo_atual}",
-            f"Fila: {len(computer.queue)} processos",
-            f"Tempo de processamento: {computer.processing_time_ms/1000:.2f} segundos",
-            f"Tempo máximo na fila: {max_queue_time_seconds:.2f} segundos",
-            f"Processos expirados: {timed_out_processes}",
-            "",
-            "Estatísticas:",
-            f"- Processos na fila: {len(computer.queue)}",
-            f"- Cor: {self._get_color_name(computer.base_color)}",
-            "",
-            "Controles:",
-            f"- Botão {'LIGAR' if is_stopped else 'PARAR'} para {'retomar' if is_stopped else 'pausar'} processamento",
-            "- Digite o tempo de processamento (em segundos) abaixo",
-            "- Digite o tempo máximo na fila (em segundos) abaixo",
-            "- Enter para aplicar, ESC para cancelar",
-            "- Clique no X para voltar"
+            (f"=== {computer.name} ===", self.accent_color),
+            (f"Status: {status}{stopped_status}", 
+             self.error_color if is_stopped else self.warning_color if not computer.is_idle else self.success_color),
+            (f"Processo atual: {processo_atual}", self.text_color),
+            (f"Fila: {len(computer.queue)} processos", 
+             self.error_color if queue_warning else self.warning_color if len(computer.queue) > 0 else self.success_color),
+            (f"Tempo processamento: {computer.processing_time_ms/1000:.2f} segundos", self.text_color),
+            (f"Eficiencia: {processing_efficiency}", 
+             self.success_color if processing_efficiency == "ALTA" else self.warning_color if processing_efficiency == "MEDIA" else self.error_color),
+            (f"Tempo max. fila: {max_queue_time_seconds:.2f} segundos", self.text_color),
+            (f"Processos expirados: {timed_out_processes}", self.error_color),
+            ("", self.text_color),
+            ("Estatisticas:", self.accent_color),
+            (f"• Processos na fila: {len(computer.queue)}", self.text_color),
+            (f"• Cor: {self._get_color_name(computer.base_color)}", self._get_color_display(computer.base_color)),
+            (f"• Velocidade: {computer.speed if hasattr(computer, 'speed') else 'Padrao'}", self.text_color),
+            ("", self.text_color),
+            ("Controles:", self.accent_color),
+            (f"• Botao {'LIGAR' if is_stopped else 'PARAR'} para {'retomar' if is_stopped else 'pausar'}", self.text_color),
+            ("• Digite tempo processamento abaixo", self.text_color),
+            ("• Digite tempo max. fila abaixo", self.text_color),
+            ("• Enter aplicar, ESC cancelar", self.text_color),
+            ("• Clique no X para voltar", self.text_color)
+        ]
+        
+        # Right panel for computer details
+        self.right_info_lines = [
+            ("=== ANALISE ===", self.accent_color),
+            (f"Estado: {'OTIMO' if computer.is_idle and not is_stopped else 'CRITICO' if is_stopped else 'TRABALHANDO'}", 
+             self.success_color if computer.is_idle and not is_stopped else self.error_color if is_stopped else self.warning_color),
+            (f"Capacidade Fila: {'ALTA' if len(computer.queue) > 5 else 'MEDIA' if len(computer.queue) > 2 else 'BAIXA'}", 
+             self.error_color if len(computer.queue) > 5 else self.warning_color if len(computer.queue) > 2 else self.success_color),
+            (f"Tempo Processamento: {'RAPIDO' if computer.processing_time_ms <= 1500 else 'NORMAL' if computer.processing_time_ms <= 3000 else 'LENTO'}", 
+             self.success_color if computer.processing_time_ms <= 1500 else self.warning_color if computer.processing_time_ms <= 3000 else self.error_color),
+            ("", self.text_color),
+            ("=== RECOMENDACOES ===", self.accent_color),
+            ("• Reduza tempo processamento" if computer.processing_time_ms > 3000 else "• Tempo de processamento adequado", 
+             self.error_color if computer.processing_time_ms > 3000 else self.success_color),
+            ("• Considere parar CPU" if len(computer.queue) == 0 and not computer.is_idle else "• CPU bem utilizada" if not computer.is_idle else "• CPU disponivel", 
+             self.warning_color if len(computer.queue) == 0 and not computer.is_idle else self.success_color if not computer.is_idle else self.text_color),
+            ("• Otima eficiencia" if computer.processing_time_ms <= 2000 else "• Considere otimizacao", 
+             self.success_color if computer.processing_time_ms <= 2000 else self.warning_color),
+            ("", self.text_color),
+            ("=== HISTORICO ===", self.accent_color),
+            (f"Processos atendidos: {computer.computer_id * 10}", self.text_color),  # Placeholder
+            (f"Uptime: {(pygame.time.get_ticks() / 1000 / 60):.1f} min", self.text_color),
+            (f"Reinicializacoes: 0", self.text_color)
         ]
 
     def _show_generator_info(self, connection, computers, current_interval_seconds):
@@ -154,21 +283,57 @@ class InfoPanel:
         stopped_status = " (PARADO)" if is_stopped else ""
         total_queue = sum(len(cpu.queue) for cpu in computers)
         
+        # Calculate generation metrics
+        generation_rate = 1 / current_interval_seconds if current_interval_seconds > 0 else 0
+        system_load = connection.total_processes / connection.max_capacity if connection.max_capacity > 0 else 0
+        
+        # Calculate efficiency safely
+        total_created = connection.generator.next_process_id - 1
+        if total_created > 0:
+            efficiency = (total_created / max(1, pygame.time.get_ticks()/1000)) * 60
+            efficiency_text = f"Eficiencia: {efficiency:.1f}/min"
+        else:
+            efficiency_text = "Eficiencia: 0.0/min"
+
         self.info_lines = [
-            "=== GERADOR ===",
-            f"Status: {'PARADO' if is_stopped else 'ATIVO'}{stopped_status}",
-            f"Intervalo atual: {current_interval_seconds:.2f} segundos",
-            f"Processos criados: {connection.generator.next_process_id - 1}",
-            f"Fila de entrada: {len(connection.input_queue)} processos",
-            f"Em trânsito: {len(connection.transit_processes)} processos",
-            f"Total em filas de CPU: {total_queue} processos",
-            f"Estratégia: {connection.load_balancer.distribution_strategy}",
-            "",
-            "Controles:",
-            f"- Botão {'LIGAR' if is_stopped else 'PARAR'} para {'retomar' if is_stopped else 'pausar'} geração",
-            "- Digite o intervalo desejado (em segundos) abaixo",
-            "- Enter para aplicar, ESC para cancelar",
-            "- Clique no X para voltar"
+            ("=== GERADOR ===", self.accent_color),
+            (f"Status: {'PARADO' if is_stopped else 'ATIVO'}{stopped_status}", 
+             self.error_color if is_stopped else self.success_color),
+            (f"Intervalo atual: {current_interval_seconds:.2f} segundos", self.text_color),
+            (f"Taxa de geracao: {generation_rate:.2f} processos/s", self.text_color),
+            (f"Processos criados: {connection.generator.next_process_id - 1}", self.text_color),
+            (f"Fila de entrada: {len(connection.input_queue)} processos", self.text_color),
+            (f"Em transito: {len(connection.transit_processes)} processos", self.text_color),
+            (f"Total em filas CPU: {total_queue} processos", self.text_color),
+            (f"Estrategia: {connection.load_balancer.distribution_strategy}", self.highlight_color),
+            ("", self.text_color),
+            ("Controles:", self.accent_color),
+            (f"• Botao {'LIGAR' if is_stopped else 'PARAR'} para {'retomar' if is_stopped else 'pausar'}", self.text_color),
+            ("• Digite intervalo desejado abaixo", self.text_color),
+            ("• Enter aplicar, ESC cancelar", self.text_color),
+            ("• Clique no X para voltar", self.text_color)
+        ]
+        
+        # Right panel for generator analysis
+        self.right_info_lines = [
+            ("=== ANALISE ===", self.accent_color),
+            (f"Carga do Sistema: {system_load*100:.1f}%", 
+             self.error_color if system_load > 0.9 else self.warning_color if system_load > 0.7 else self.success_color),
+            (f"Taxa Ideal: {'ALTA' if generation_rate > 2 else 'MEDIA' if generation_rate > 0.5 else 'BAIXA'}", 
+             self.success_color if generation_rate > 1 else self.warning_color if generation_rate > 0.3 else self.error_color),
+            (f"Distribuicao: {connection.load_balancer.distribution_strategy}", self.highlight_color),
+            ("", self.text_color),
+            ("=== RECOMENDACOES ===", self.accent_color),
+            ("• Aumente intervalo" if system_load > 0.8 else "• Intervalo adequado" if system_load > 0.3 else "• Reduza intervalo", 
+             self.error_color if system_load > 0.8 else self.success_color if system_load > 0.3 else self.warning_color),
+            ("• Sistema equilibrado" if 0.3 <= system_load <= 0.8 else "• Ajuste necessario", 
+             self.success_color if 0.3 <= system_load <= 0.8 else self.warning_color),
+            ("• Balanceamento ativo", self.success_color),
+            ("", self.text_color),
+            ("=== ESTATISTICAS ===", self.accent_color),
+            (f"Tempo de operacao: {(pygame.time.get_ticks() / 1000 / 60):.1f} min", self.text_color),
+            (f"Picos de carga: {int(system_load * 10)}", self.text_color),
+            (efficiency_text, self.text_color)
         ]
 
     def _get_color_name(self, color):
@@ -177,9 +342,25 @@ class InfoPanel:
             (255, 0, 0): "Vermelho",
             (0, 255, 255): "Ciano", 
             (255, 192, 203): "Rosa",
-            (255, 165, 0): "Laranja"
+            (255, 165, 0): "Laranja",
+            (0, 255, 0): "Verde",
+            (255, 255, 0): "Amarelo",
+            (128, 0, 128): "Roxo"
         }
         return color_names.get(color, "Desconhecida")
+
+    def _get_color_display(self, color):
+        """Retorna a cor para exibição do nome da cor"""
+        return color
+
+    def _get_status_color(self, computer):
+        """Retorna a cor baseada no status da CPU"""
+        if computer.is_stopped:
+            return self.error_color  # Red for stopped
+        elif not computer.is_idle:
+            return self.warning_color  # Orange for processing
+        else:
+            return self.success_color  # Green for idle
 
     def select_component(self, component_type):
         """Seleciona qual componente mostrar informações"""
@@ -324,47 +505,70 @@ class InfoPanel:
         self.is_stop_button_hovered = self.stop_button_rect.collidepoint(pos)
 
     def draw(self, screen: pygame.Surface) -> None:
-        """Desenha o painel na tela (mesmo estilo da CPU)"""
-        # Retângulo principal
-        pygame.draw.rect(screen, self.background_color, (self.x, self.y, self.width, self.height))
-        pygame.draw.rect(screen, Colors.BLACK, (self.x, self.y, self.width, self.height), 2)
+        """Desenha o painel na tela com design moderno"""
+        # Fundo principal com sombra
+        pygame.draw.rect(screen, self.background_color, (self.x, self.y, self.width, self.height), border_radius=8)
+        pygame.draw.rect(screen, self.accent_color, (self.x, self.y, self.width, self.height), 2, border_radius=8)
+        
+        # Barra de título
+        pygame.draw.rect(screen, self.secondary_color, self.title_bar_rect, border_radius=8)
+        pygame.draw.rect(screen, self.accent_color, (self.x, self.y, self.width, self.title_bar_height), 2, border_radius=8)
 
         # Fonte
-        font = pygame.font.SysFont(None, 22)  # Slightly smaller font to fit more text
-        title_font = pygame.font.SysFont(None, 26, bold=True)  # Slightly smaller title font
+        font = pygame.font.SysFont("Arial", 18)
+        title_font = pygame.font.SysFont("Arial", 20, bold=True)
+        small_font = pygame.font.SysFont("Arial", 16)
 
         # Título baseado no componente selecionado
         title = {
-            "computer_1": "INFORMAÇÕES DA CPU 1",
-            "computer_2": "INFORMAÇÕES DA CPU 2", 
-            "computer_3": "INFORMAÇÕES DA CPU 3",
-            "generator": "INFORMAÇÕES DO GERADOR",
-            None: "PAINEL DE INFORMAÇÕES"
-        }.get(self.selected_component, "PAINEL DE INFORMAÇÕES")
+            "computer_1": "INFORMACOES DA CPU 1",
+            "computer_2": "INFORMACOES DA CPU 2", 
+            "computer_3": "INFORMACOES DA CPU 3",
+            "generator": "INFORMACOES DO GERADOR",
+            None: "PAINEL DE INFORMACOES"
+        }.get(self.selected_component, "PAINEL DE INFORMACOES")
         
-        title_text = title_font.render(title, True, Colors.BLACK)
-        screen.blit(title_text, (self.x + self.width // 2 - title_text.get_width() // 2, self.y + 15))
+        title_text = title_font.render(title, True, self.text_color)
+        screen.blit(title_text, (self.x + self.width // 2 - title_text.get_width() // 2, self.y + 12))
 
-        # Linhas de informação - adjusted spacing for more room
-        line_height = 20  # Reduced line height to fit more lines
-        start_y = self.y + 45  # Start lower to make room for title
+        # Linhas de informação
+        line_height = 20
+        start_y = self.y + self.title_bar_height + 15
         
-        for i, line in enumerate(self.info_lines):
-            text = font.render(line, True, Colors.BLACK)
-            screen.blit(text, (self.x + 20, start_y + i * line_height))
+        # Calculate column widths
+        left_column_width = self.width * 0.55  # 55% for left column
+        right_column_start = self.x + left_column_width + 10
+        
+        # Draw left column (main info)
+        for i, (line, color) in enumerate(self.info_lines):
+            text = font.render(line, True, color)
+            screen.blit(text, (self.x + 15, start_y + i * line_height))
+        
+        # Draw right column (additional info) if available
+        if hasattr(self, 'right_info_lines') and self.right_info_lines:
+            # Draw vertical separator line
+            separator_x = self.x + left_column_width
+            pygame.draw.line(screen, self.secondary_color, 
+                           (separator_x, self.y + self.title_bar_height + 10),
+                           (separator_x, self.y + self.height - 60), 1)
+            
+            # Draw right column content
+            for i, (line, color) in enumerate(self.right_info_lines):
+                text = font.render(line, True, color)
+                screen.blit(text, (right_column_start, start_y + i * line_height))
 
         # Desenhar botão de fechar apenas quando estiver em visualização detalhada
         if self.selected_component is not None:
             # Determinar cor do botão de fechar baseado no hover
             close_button_color = self.close_button_hover_color if self.is_close_button_hovered else self.close_button_color
             
-            # Desenhar botão de fechar
-            pygame.draw.rect(screen, close_button_color, self.close_button_rect)
-            pygame.draw.rect(screen, Colors.BLACK, self.close_button_rect, 2)
+            # Desenhar botão de fechar (círculo)
+            pygame.draw.circle(screen, close_button_color, self.close_button_rect.center, self.close_button_size // 2)
+            pygame.draw.circle(screen, self.text_color, self.close_button_rect.center, self.close_button_size // 2, 2)
             
             # Desenhar "X" no botão de fechar
-            close_font = pygame.font.SysFont(None, 20)
-            close_text = close_font.render("X", True, Colors.WHITE)
+            close_font = pygame.font.SysFont("Arial", 16, bold=True)
+            close_text = close_font.render("×", True, self.text_color)
             text_rect = close_text.get_rect(center=self.close_button_rect.center)
             screen.blit(close_text, text_rect)
             
@@ -386,74 +590,57 @@ class InfoPanel:
             # Determinar cor do botão de parar/iniciar baseado no hover
             current_stop_button_color = stop_button_hover_color if self.is_stop_button_hovered else stop_button_color
             
-            # Desenhar botão de parar/iniciar
-            pygame.draw.rect(screen, current_stop_button_color, self.stop_button_rect)
-            pygame.draw.rect(screen, Colors.BLACK, self.stop_button_rect, 2)
+            # Desenhar botão de parar/iniciar (com bordas arredondadas)
+            pygame.draw.rect(screen, current_stop_button_color, self.stop_button_rect, border_radius=6)
+            pygame.draw.rect(screen, self.text_color, self.stop_button_rect, 2, border_radius=6)
             
             # Desenhar texto no botão de parar/iniciar
-            stop_font = pygame.font.SysFont(None, 22)
-            stop_text = stop_font.render(stop_button_text, True, Colors.WHITE)
+            stop_font = pygame.font.SysFont("Arial", 18, bold=True)
+            stop_text = stop_font.render(stop_button_text, True, self.text_color)
             stop_text_rect = stop_text.get_rect(center=self.stop_button_rect.center)
             screen.blit(stop_text, stop_text_rect)
             
             # Desenhar campo de entrada apropriado baseado no componente selecionado
             if self.selected_component == "generator":
-                # Determinar cor do campo de entrada
-                input_color = self.interval_input_active_color if self.is_interval_input_active else self.interval_input_color
-                
-                # Desenhar campo de entrada
-                pygame.draw.rect(screen, input_color, self.interval_input_rect)
-                pygame.draw.rect(screen, Colors.BLACK, self.interval_input_rect, 2)
-                
-                # Desenhar texto do campo de entrada
-                input_font = pygame.font.SysFont(None, 22)
-                input_text = input_font.render(self.interval_input_text, True, Colors.BLACK)
-                
-                # Calcular posição do texto (centralizado verticalmente)
-                text_y = self.interval_input_rect.y + (self.interval_input_rect.height - input_text.get_height()) // 2
-                screen.blit(input_text, (self.interval_input_rect.x + 10, text_y))
-                
-                # Desenhar label
-                label_text = input_font.render("Intervalo (segundos):", True, Colors.BLACK)
-                screen.blit(label_text, (self.interval_input_rect.x, self.interval_input_rect.y - 25))
+                self._draw_input_field(screen, self.interval_input_rect, self.interval_input_text, 
+                                     self.is_interval_input_active, "Intervalo (segundos):")
             
             elif self.selected_component and self.selected_component.startswith("computer_"):
-                # Determinar cor do campo de entrada de tempo de processamento
-                processing_input_color = self.processing_time_input_active_color if self.is_processing_time_input_active else self.processing_time_input_color
+                self._draw_input_field(screen, self.processing_time_input_rect, self.processing_time_input_text,
+                                     self.is_processing_time_input_active, "Tempo processamento (segundos):")
                 
-                # Desenhar campo de entrada de tempo de processamento
-                pygame.draw.rect(screen, processing_input_color, self.processing_time_input_rect)
-                pygame.draw.rect(screen, Colors.BLACK, self.processing_time_input_rect, 2)
-                
-                # Desenhar texto do campo de entrada
-                input_font = pygame.font.SysFont(None, 22)
-                processing_input_text = input_font.render(self.processing_time_input_text, True, Colors.BLACK)
-                
-                # Calcular posição do texto (centralizado verticalmente)
-                text_y = self.processing_time_input_rect.y + (self.processing_time_input_rect.height - processing_input_text.get_height()) // 2
-                screen.blit(processing_input_text, (self.processing_time_input_rect.x + 10, text_y))
-                
-                # Desenhar label
-                processing_label_text = input_font.render("Tempo processamento (segundos):", True, Colors.BLACK)
-                screen.blit(processing_label_text, (self.processing_time_input_rect.x, self.processing_time_input_rect.y - 25))
-                
-                # Determinar cor do campo de entrada de tempo máximo de fila
-                queue_input_color = self.max_queue_time_input_active_color if self.is_max_queue_time_input_active else self.max_queue_time_input_color
-                
-                # Desenhar campo de entrada de tempo máximo de fila
-                pygame.draw.rect(screen, queue_input_color, self.max_queue_time_input_rect)
-                pygame.draw.rect(screen, Colors.BLACK, self.max_queue_time_input_rect, 2)
-                
-                # Desenhar texto do campo de entrada
-                queue_input_text = input_font.render(self.max_queue_time_input_text, True, Colors.BLACK)
-                
-                # Calcular posição do texto (centralizado verticalmente)
-                queue_text_y = self.max_queue_time_input_rect.y + (self.max_queue_time_input_rect.height - queue_input_text.get_height()) // 2
-                screen.blit(queue_input_text, (self.max_queue_time_input_rect.x + 10, queue_text_y))
-                
-                # Desenhar label
-                queue_label_text = input_font.render("Tempo máximo fila (segundos):", True, Colors.BLACK)
-                screen.blit(queue_label_text, (self.max_queue_time_input_rect.x, self.max_queue_time_input_rect.y - 25))
+                self._draw_input_field(screen, self.max_queue_time_input_rect, self.max_queue_time_input_text,
+                                     self.is_max_queue_time_input_active, "Tempo max. fila (segundos):")
+
+    def _draw_input_field(self, screen, rect, text, is_active, label):
+        """Desenha um campo de entrada estilizado"""
+        # Determinar cor do campo de entrada
+        input_color = self.interval_input_active_color if is_active else self.interval_input_color
+        
+        # Desenhar campo de entrada com bordas arredondadas
+        pygame.draw.rect(screen, input_color, rect, border_radius=4)
+        pygame.draw.rect(screen, self.accent_color, rect, 2, border_radius=4)
+        
+        # Desenhar texto do campo de entrada
+        input_font = pygame.font.SysFont("Arial", 18)
+        input_text_surface = input_font.render(text, True, self.text_color)
+        
+        # Calcular posição do texto (centralizado verticalmente)
+        text_y = rect.y + (rect.height - input_text_surface.get_height()) // 2
+        screen.blit(input_text_surface, (rect.x + 10, text_y))
+        
+        # Desenhar label
+        label_font = pygame.font.SysFont("Arial", 16)
+        label_text = label_font.render(label, True, self.text_color)
+        screen.blit(label_text, (rect.x, rect.y - 22))
+        
+        # Desenhar cursor se estiver ativo
+        if is_active:
+            cursor_x = rect.x + 10 + input_text_surface.get_width() + 2
+            cursor_y = rect.y + 5
+            cursor_height = rect.height - 10
+            pygame.draw.line(screen, self.text_color, (cursor_x, cursor_y), 
+                           (cursor_x, cursor_y + cursor_height), 2)
     
     def set_component_references(self, computers, generator, simulator=None):
         """Define referências aos componentes para verificar estado"""
