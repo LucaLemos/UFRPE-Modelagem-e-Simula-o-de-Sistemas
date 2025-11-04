@@ -11,14 +11,12 @@ from utils.grid_helper import GridHelper
 
 class QueueSimulator:
     def __init__(self):
-        # Componentes do sistema com múltiplas CPUs
+        # Componentes do sistema - COMEÇA APENAS COM CPU 1
         self.generator = ProcessGenerator()
         
-        # Criar múltiplas CPUs com cores diferentes
+        # Criar apenas a CPU 1 inicialmente
         self.computers = [
-            Computer(1, GridPositions.COMPUTER_1, CPU_COLORS[0]),
-            Computer(2, GridPositions.COMPUTER_2, CPU_COLORS[1]),
-            Computer(3, GridPositions.COMPUTER_3, CPU_COLORS[2])
+            Computer(1, GridPositions.COMPUTER_1, CPU_COLORS[0])
         ]
         
         # Adicionar ShopPanel
@@ -38,21 +36,59 @@ class QueueSimulator:
         # Sistema de pontuação
         self.score = 0
         
+        # Variável para controlar o modo de jogo
+        self._game_mode = "sandbox"  # padrão: sandbox
+        
         # Passar referências dos componentes para o InfoPanel
         self.info_panel.set_component_references(self.computers, self.generator, self)
     
+    def set_game_mode(self, mode):
+        """Define o modo de operação (sandbox ou game)"""
+        self._game_mode = mode
+        print(f"Modo definido para: {mode}")
+    
+    def is_game_mode(self):
+        """Verifica se está no modo jogo"""
+        return self._game_mode == "game"
+    
     def handle_click(self, pos):
         """Lida com cliques do mouse nos componentes"""
-        # Primeiro verificar se a loja foi clicada
+        # Primeiro verificar se a loja foi clicada (permitido em ambos os modos)
         shop_item = self.shop_panel.is_clicked(pos)
-        if shop_item and not shop_item["purchased"]:
-            success, cost = self.shop_panel.purchase_item(shop_item["id"], self.score)
-            if success:
-                self.score -= cost
-                self._apply_shop_purchase(shop_item["id"])
-                print(f"Item {shop_item['name']} comprado por {cost} pontos!")
+        if shop_item:
+            # Para upgrades infinitos, sempre permitir compra se tiver pontos suficientes
+            # Para CPUs, verificar se não foi comprado
+            if (shop_item["id"] in ["upgrade_processing_speed", "upgrade_capacity", "upgrade_speed"] or 
+                not shop_item.get("purchased", False)):
+                
+                success, cost = self.shop_panel.purchase_item(shop_item["id"], self.score)
+                if success:
+                    self.score -= cost
+                    self._apply_shop_purchase(shop_item["id"])
+                    print(f"Item {shop_item['name']} comprado por {cost} pontos!")
             return
         
+        # **NO MODO JOGO: Restringir controles avançados**
+        if self.is_game_mode():
+            # No modo jogo, apenas permitir visualização de informações
+            # mas não permitir interação com controles
+            computer_clicked = False
+            for i, computer in enumerate(self.computers):
+                if computer.is_clicked(pos):
+                    self.info_panel.select_component(f"computer_{i+1}")
+                    self.info_panel.deactivate_all_inputs()
+                    print(f"CPU {i+1} clicada - modo visualização apenas")
+                    computer_clicked = True
+                    break
+            
+            if not computer_clicked and self.generator.is_clicked(pos):
+                self.info_panel.select_component("generator")
+                print("Gerador clicado - modo visualização apenas")
+            elif not computer_clicked:
+                self.info_panel.deactivate_all_inputs()
+            return
+        
+        # **MODO SANDBOX: Controles completos**
         # Primeiro verifica se o botão de fechar foi clicado
         if self.info_panel.is_close_button_clicked(pos):
             self.info_panel.close_detailed_view()
@@ -99,6 +135,11 @@ class QueueSimulator:
     
     def handle_key_event(self, event):
         """Lida com eventos de teclado para entrada de texto"""
+        # **NO MODO JOGO: Ignorar todas as entradas de teclado para controles**
+        if self.is_game_mode():
+            return
+        
+        # **MODO SANDBOX: Controles completos de teclado**
         # Handle generator interval input
         if (self.info_panel.selected_component == "generator" and 
             self.info_panel.is_interval_input_active):
@@ -181,6 +222,11 @@ class QueueSimulator:
     
     def _handle_stop_button_click(self):
         """Lida com o clique no botão de parar/iniciar"""
+        # **NO MODO JOGO: Este método não deve ser chamado**
+        if self.is_game_mode():
+            return
+        
+        # **MODO SANDBOX: Controles completos**
         selected_component = self.info_panel.selected_component
         
         if selected_component == "generator":
@@ -197,6 +243,14 @@ class QueueSimulator:
     
     def handle_mouse_motion(self, pos):
         """Lida com movimento do mouse para efeitos visuais"""
+        # **NO MODO JOGO: Atualizar hover apenas para elementos visíveis**
+        if self.is_game_mode():
+            # No modo jogo, apenas atualizar hover do botão de fechar se estiver visível
+            if self.info_panel.selected_component is not None:
+                self.info_panel.update_button_hover(pos)
+            return
+        
+        # **MODO SANDBOX: Atualizar todos os hovers**
         self.info_panel.update_button_hover(pos)
     
     def update(self) -> None:
@@ -231,18 +285,42 @@ class QueueSimulator:
 
     def _apply_shop_purchase(self, item_id):
         """Aplica os efeitos da compra na loja"""
-        if item_id == "cpu_4":
+        if item_id == "cpu_2":
+            self._add_new_computer(2, Colors.CYAN, GridPositions.COMPUTER_2)
+        elif item_id == "cpu_3":
+            self._add_new_computer(3, Colors.PINK, GridPositions.COMPUTER_3)
+        elif item_id == "cpu_4":
             self._add_new_computer(4, Colors.GREEN, GridPositions.COMPUTER_4)
         elif item_id == "cpu_5":
             self._add_new_computer(5, Colors.YELLOW, GridPositions.COMPUTER_5)
         elif item_id == "cpu_6":
             self._add_new_computer(6, Colors.PURPLE, GridPositions.COMPUTER_6)
         elif item_id == "upgrade_speed":
-            self.connection.transport_speed *= 1.5
-            print("Velocidade de transporte aumentada!")
+            # Aumento gradual da velocidade de transporte
+            speed_level = self.shop_panel.get_upgrade_level("upgrade_speed")
+            # Cada nível aumenta a velocidade em 25%
+            self.connection.transport_speed = 3.0 * (1.25 ** (speed_level - 1))
+            print(f"Velocidade de transporte aumentada para nível {speed_level}! ({self.connection.transport_speed:.1f}x)")
         elif item_id == "upgrade_capacity":
-            self.connection.max_capacity += 10
-            print("Capacidade do sistema aumentada!")
+            # Aumento gradual da capacidade
+            capacity_level = self.shop_panel.get_upgrade_level("upgrade_capacity")
+            # Cada nível aumenta a capacidade em 8
+            self.connection.max_capacity = 15 + (8 * (capacity_level - 1))
+            print(f"Capacidade do sistema aumentada para nível {capacity_level}! ({self.connection.max_capacity})")
+        elif item_id == "upgrade_processing_speed":
+            # Aplicar redução no tempo de processamento de todas as CPUs
+            processing_speed_level = self.shop_panel.get_processing_speed_level()
+            # Cada nível reduz o tempo em 15% (mínimo de 0.3 segundos)
+            reduction_factor = 0.85 ** (processing_speed_level - 1)
+            
+            for computer in self.computers:
+                # Reduzir o tempo base (2000ms) pelo fator de redução
+                base_processing_time = 2000  # 2 segundos base
+                new_processing_time = base_processing_time * reduction_factor
+                computer.processing_time_ms = max(300, new_processing_time)  # Mínimo de 0.3 segundos
+            
+            print(f"Velocidade de processamento aumentada para nível {processing_speed_level}!")
+            print(f"Tempo de processamento reduzido para {reduction_factor*100:.1f}% do original")
     
     def _add_new_computer(self, computer_id, color, grid_position):
         """Adiciona uma nova CPU ao sistema"""
@@ -262,8 +340,8 @@ class QueueSimulator:
     def _add_score(self):
         """Adiciona pontos quando um processo é completado com sucesso"""
         self.score += 1
-        print(f"[SUCESSO] Processo completado! Pontuacao: {self.score}")  # Changed emoji to text
-    
+        print(f"[SUCESSO] Processo completado! Pontuacao: {self.score}")
+
     def _handle_auto_generation(self) -> None:
         """Gerencia a geração automática de processos"""
         if self.connection.has_capacity and not self.generator.is_stopped:
@@ -316,6 +394,11 @@ class QueueSimulator:
         self.generator.draw(screen)
         for computer in self.computers:
             computer.draw(screen)
+        
+        # **ATUALIZAÇÃO: Passar informação do modo para o InfoPanel**
+        if hasattr(self.info_panel, '_simulator_ref'):
+            self.info_panel._simulator_ref = self
+        
         self.info_panel.draw(screen)
         
         # Shop Panel (novo)
@@ -344,12 +427,17 @@ class QueueSimulator:
         font_small = pygame.font.SysFont(None, 18)
         
         # Título
-        title_text = font_small.render("PONTUACAO", True, Colors.WHITE)  # Removed accent
+        title_text = font_small.render("PONTUACAO", True, Colors.WHITE)
         screen.blit(title_text, (score_x + score_width//2 - title_text.get_width()//2, score_y + 10))
         
         # Valor da pontuação
         score_text = font_large.render(str(self.score), True, Colors.GREEN)
         screen.blit(score_text, (score_x + score_width//2 - score_text.get_width()//2, score_y + 30))
+        
+        # **ADICIONADO: Indicador de modo atual**
+        mode_text = font_small.render(f"Modo: {self._game_mode.upper()}", True, 
+                                    Colors.YELLOW if self.is_game_mode() else Colors.CYAN)
+        screen.blit(mode_text, (score_x + score_width//2 - mode_text.get_width()//2, score_y + 55))
     
     def _draw_processing_process(self, screen: pygame.Surface, computer: Computer) -> None:
         """Desenha o processo atualmente em processamento na CPU"""
@@ -380,10 +468,10 @@ class QueueSimulator:
         rho = lambda_rate / (c * mu_rate)  # utilização do sistema
         
         print(f"=== SISTEMA M/M/{c} ===")
-        print(f"Numero de CPUs ativas: {c}")  # Removed accent
+        print(f"Numero de CPUs ativas: {c}")
         print(f"Taxa de chegada (lambda): {lambda_rate:.3f} processos/segundo")
-        print(f"Taxa de servico media (mu): {mu_rate:.3f} processos/segundo")  # Removed accent
-        print(f"Utilizacao do sistema (rho): {rho:.3f}")  # Removed accent
+        print(f"Taxa de servico media (mu): {mu_rate:.3f} processos/segundo")
+        print(f"Utilizacao do sistema (rho): {rho:.3f}")
         
         # Informações individuais de cada CPU
         for i, computer in enumerate(self.computers):
@@ -391,10 +479,10 @@ class QueueSimulator:
             print(f"CPU {i+1}: {status}, Fila: {len(computer.queue)}, Tempo processamento: {computer.processing_time_ms/1000:.2f}s")
         
         print(f"Processos expirados na fila: {self.timed_out_processes}")
-        print(f"Pontuacao: {self.score}")  # Removed accent
+        print(f"Pontuacao: {self.score}")
         
         if rho < 1:
             # Cálculos simplificados para M/M/c
-            print("Sistema estavel")  # Removed accent
+            print("Sistema estavel")
         else:
-            print("Sistema instavel: a taxa de chegada e maior que a capacidade total de servico")  # Removed accents
+            print("Sistema instavel: a taxa de chegada e maior que a capacidade total de servico")

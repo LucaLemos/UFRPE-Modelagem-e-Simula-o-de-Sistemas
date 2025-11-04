@@ -495,81 +495,125 @@ class InfoPanel:
 
         # Desenhar botão de fechar apenas quando estiver em visualização detalhada
         if self.selected_component is not None:
+            # **NOVA FUNCIONALIDADE: Verificar se está no modo jogo**
+            is_game_mode = hasattr(self, '_simulator_ref') and hasattr(self._simulator_ref, '_game_mode') and self._simulator_ref._game_mode == "game"
+            
             # Calculate center position for controls in the right column
             right_column_center_x = right_column_x + (self.column_width - self.input_width) // 2
             
             # Position controls vertically centered with spacing
             controls_start_y = self.y + self.title_bar_height + (self.height - self.title_bar_height - 60) // 2 - 50
             
-            # Determinar texto e cor do botão de parar/iniciar
-            is_component_stopped = False
-            if self.selected_component == "generator":
-                is_component_stopped = getattr(self, '_generator_ref', None) and getattr(self._generator_ref, 'is_stopped', False)
-                
-                # Position generator controls
-                self.interval_input_rect.x = right_column_center_x
-                self.interval_input_rect.y = controls_start_y
-                
-                self.stop_button_rect.x = right_column_center_x + (self.input_width - self.stop_button_width) // 2
-                self.stop_button_rect.y = controls_start_y + 60  # Space between input and button
-                
-                # Draw generator controls
-                self._draw_input_field(screen, self.interval_input_rect, self.interval_input_text, 
-                                     self.is_interval_input_active, "Intervalo (s):")
+            # **ALTERAÇÃO: Comportamento diferente para modo jogo vs sandbox**
+            if is_game_mode:
+                # **MODO JOGO: Mostrar apenas informações, sem controles**
+                self._draw_game_mode_restrictions(screen, right_column_center_x, controls_start_y)
+            else:
+                # **MODO SANDBOX: Mostrar controles completos**
+                self._draw_sandbox_controls(screen, right_column_center_x, controls_start_y)
+
+    def _draw_game_mode_restrictions(self, screen, right_column_center_x, controls_start_y):
+        """Desenha informações de restrição para o modo jogo"""
+        info_font = pygame.font.SysFont("Arial", 16)
+        warning_font = pygame.font.SysFont("Arial", 14)
+        
+        # Mensagem principal
+        main_text = info_font.render("MODO JOGO ATIVO", True, Colors.YELLOW)
+        screen.blit(main_text, (right_column_center_x - 60, controls_start_y + 20))
+        
+        # Mensagens de restrição
+        restrictions = [
+            "• Controles desativados",
+            "• Apenas visualização",
+            "• Use a loja para upgrades"
+        ]
+        
+        for i, restriction in enumerate(restrictions):
+            restriction_text = warning_font.render(restriction, True, self.text_color)
+            screen.blit(restriction_text, (right_column_center_x - 70, controls_start_y + 50 + i * 25))
+        
+        # Apenas desenhar botão de fechar (sem outros controles)
+        close_button_color = self.close_button_hover_color if self.is_close_button_hovered else self.close_button_color
+        pygame.draw.circle(screen, close_button_color, self.close_button_rect.center, self.close_button_size // 2)
+        pygame.draw.circle(screen, self.text_color, self.close_button_rect.center, self.close_button_size // 2, 2)
+        
+        close_font = pygame.font.SysFont("Arial", 16, bold=True)
+        close_text = close_font.render("×", True, self.text_color)
+        text_rect = close_text.get_rect(center=self.close_button_rect.center)
+        screen.blit(close_text, text_rect)
+
+    def _draw_sandbox_controls(self, screen, right_column_center_x, controls_start_y):
+        """Desenha controles completos para o modo sandbox"""
+        # Determinar texto e cor do botão de parar/iniciar
+        is_component_stopped = False
+        if self.selected_component == "generator":
+            is_component_stopped = getattr(self, '_generator_ref', None) and getattr(self._generator_ref, 'is_stopped', False)
             
-            elif self.selected_component and self.selected_component.startswith("computer_"):
-                computer_index = int(self.selected_component.split('_')[1]) - 1
-                if (hasattr(self, '_computers_ref') and 
-                    computer_index < len(self._computers_ref)):
-                    computer = self._computers_ref[computer_index]
-                    is_component_stopped = getattr(computer, 'is_stopped', False)
-                
-                # Position computer controls with vertical spacing
-                self.processing_time_input_rect.x = right_column_center_x
-                self.processing_time_input_rect.y = controls_start_y
-                
-                self.max_queue_time_input_rect.x = right_column_center_x
-                self.max_queue_time_input_rect.y = controls_start_y + 50  # Space between inputs
-                
-                self.stop_button_rect.x = right_column_center_x + (self.input_width - self.stop_button_width) // 2
-                self.stop_button_rect.y = controls_start_y + 120  # Space after second input
-                
-                # Draw computer controls
-                self._draw_input_field(screen, self.processing_time_input_rect, self.processing_time_input_text,
-                                     self.is_processing_time_input_active, "Tempo proc. (s):")
-                
-                self._draw_input_field(screen, self.max_queue_time_input_rect, self.max_queue_time_input_text,
-                                     self.is_max_queue_time_input_active, "Tempo max. fila (s):")
+            # Position generator controls
+            self.interval_input_rect.x = right_column_center_x
+            self.interval_input_rect.y = controls_start_y
             
-            # Determinar cor do botão de fechar baseado no hover
-            close_button_color = self.close_button_hover_color if self.is_close_button_hovered else self.close_button_color
+            self.stop_button_rect.x = right_column_center_x + (self.input_width - self.stop_button_width) // 2
+            self.stop_button_rect.y = controls_start_y + 60  # Space between input and button
             
-            # Desenhar botão de fechar (círculo)
-            pygame.draw.circle(screen, close_button_color, self.close_button_rect.center, self.close_button_size // 2)
-            pygame.draw.circle(screen, self.text_color, self.close_button_rect.center, self.close_button_size // 2, 2)
+            # Draw generator controls
+            self._draw_input_field(screen, self.interval_input_rect, self.interval_input_text, 
+                                 self.is_interval_input_active, "Intervalo (s):")
+        
+        elif self.selected_component and self.selected_component.startswith("computer_"):
+            computer_index = int(self.selected_component.split('_')[1]) - 1
+            if (hasattr(self, '_computers_ref') and 
+                computer_index < len(self._computers_ref)):
+                computer = self._computers_ref[computer_index]
+                is_component_stopped = getattr(computer, 'is_stopped', False)
             
-            # Desenhar "X" no botão de fechar
-            close_font = pygame.font.SysFont("Arial", 16, bold=True)
-            close_text = close_font.render("×", True, self.text_color)
-            text_rect = close_text.get_rect(center=self.close_button_rect.center)
-            screen.blit(close_text, text_rect)
+            # Position computer controls with vertical spacing
+            self.processing_time_input_rect.x = right_column_center_x
+            self.processing_time_input_rect.y = controls_start_y
             
-            stop_button_text = "LIGAR" if is_component_stopped else "PARAR"
-            stop_button_color = self.stop_button_start_color if is_component_stopped else self.stop_button_color
-            stop_button_hover_color = self.stop_button_start_hover_color if is_component_stopped else self.stop_button_hover_color
+            self.max_queue_time_input_rect.x = right_column_center_x
+            self.max_queue_time_input_rect.y = controls_start_y + 50  # Space between inputs
             
-            # Determinar cor do botão de parar/iniciar baseado no hover
-            current_stop_button_color = stop_button_hover_color if self.is_stop_button_hovered else stop_button_color
+            self.stop_button_rect.x = right_column_center_x + (self.input_width - self.stop_button_width) // 2
+            self.stop_button_rect.y = controls_start_y + 120  # Space after second input
             
-            # Desenhar botão de parar/iniciar (com bordas arredondadas)
-            pygame.draw.rect(screen, current_stop_button_color, self.stop_button_rect, border_radius=6)
-            pygame.draw.rect(screen, self.text_color, self.stop_button_rect, 2, border_radius=6)
+            # Draw computer controls
+            self._draw_input_field(screen, self.processing_time_input_rect, self.processing_time_input_text,
+                                 self.is_processing_time_input_active, "Tempo proc. (s):")
             
-            # Desenhar texto no botão de parar/iniciar
-            stop_font = pygame.font.SysFont("Arial", 18, bold=True)
-            stop_text = stop_font.render(stop_button_text, True, self.text_color)
-            stop_text_rect = stop_text.get_rect(center=self.stop_button_rect.center)
-            screen.blit(stop_text, stop_text_rect)
+            self._draw_input_field(screen, self.max_queue_time_input_rect, self.max_queue_time_input_text,
+                                 self.is_max_queue_time_input_active, "Tempo max. fila (s):")
+        
+        # Determinar cor do botão de fechar baseado no hover
+        close_button_color = self.close_button_hover_color if self.is_close_button_hovered else self.close_button_color
+        
+        # Desenhar botão de fechar (círculo)
+        pygame.draw.circle(screen, close_button_color, self.close_button_rect.center, self.close_button_size // 2)
+        pygame.draw.circle(screen, self.text_color, self.close_button_rect.center, self.close_button_size // 2, 2)
+        
+        # Desenhar "X" no botão de fechar
+        close_font = pygame.font.SysFont("Arial", 16, bold=True)
+        close_text = close_font.render("×", True, self.text_color)
+        text_rect = close_text.get_rect(center=self.close_button_rect.center)
+        screen.blit(close_text, text_rect)
+        
+        # Desenhar botão de parar/iniciar (apenas no modo sandbox)
+        stop_button_text = "LIGAR" if is_component_stopped else "PARAR"
+        stop_button_color = self.stop_button_start_color if is_component_stopped else self.stop_button_color
+        stop_button_hover_color = self.stop_button_start_hover_color if is_component_stopped else self.stop_button_hover_color
+        
+        # Determinar cor do botão de parar/iniciar baseado no hover
+        current_stop_button_color = stop_button_hover_color if self.is_stop_button_hovered else stop_button_color
+        
+        # Desenhar botão de parar/iniciar (com bordas arredondadas)
+        pygame.draw.rect(screen, current_stop_button_color, self.stop_button_rect, border_radius=6)
+        pygame.draw.rect(screen, self.text_color, self.stop_button_rect, 2, border_radius=6)
+        
+        # Desenhar texto no botão de parar/iniciar
+        stop_font = pygame.font.SysFont("Arial", 18, bold=True)
+        stop_text = stop_font.render(stop_button_text, True, self.text_color)
+        stop_text_rect = stop_text.get_rect(center=self.stop_button_rect.center)
+        screen.blit(stop_text, stop_text_rect)
 
     def _draw_input_field(self, screen, rect, text, is_active, label):
         """Desenha um campo de entrada estilizado"""
