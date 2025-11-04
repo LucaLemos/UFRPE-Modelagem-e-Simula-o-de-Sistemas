@@ -31,9 +31,13 @@ class LoadBalancer:
     
     def _round_robin(self):
         """Distribuição round-robin entre CPUs"""
-        # CORREÇÃO: Verificar se há CPUs disponíveis
+        # CORREÇÃO: Verificar se há CPUs disponíveis e resetar índice se necessário
         if not self.computers:
             return None
+            
+        # Garantir que o índice atual é válido
+        if self.current_index >= len(self.computers):
+            self.current_index = 0
             
         computer = self.computers[self.current_index]
         self.current_index = (self.current_index + 1) % len(self.computers)
@@ -100,6 +104,13 @@ class ConnectionSystem:
                 self.computer_directions[computer] = {
                     'dx': 0, 'dy': 0, 'length': 0, 'end_point': end_point
                 }
+    
+    def update_computers_list(self, new_computers):
+        """CORREÇÃO: Atualiza a lista de computadores no load balancer"""
+        self.computers = new_computers
+        self.load_balancer.computers = new_computers
+        self.load_balancer.current_index = 0  # Resetar índice para evitar problemas
+        self._calculate_all_directions()
     
     def add_process(self, process: Process) -> bool:
         """Adiciona um processo ao sistema se houver capacidade"""

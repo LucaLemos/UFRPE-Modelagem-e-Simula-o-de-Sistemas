@@ -47,9 +47,9 @@ class GridPositions:
     COMPUTER_1 = (5, 1)  # CPU 1
     COMPUTER_2 = (5, 2)  # CPU 2
     COMPUTER_3 = (5, 3)  # CPU 3
-    COMPUTER_4 = (6, 1)  # Nova CPU 4
-    COMPUTER_5 = (6, 2)  # Nova CPU 5  
-    COMPUTER_6 = (6, 3)  # Nova CPU 6
+    COMPUTER_4 = (7, 1)  # Nova CPU 4
+    COMPUTER_5 = (7, 2)  # Nova CPU 5  
+    COMPUTER_6 = (7, 3)  # Nova CPU 6
     INFO_PANEL = (0, 4)
     SHOP_PANEL = (10, 0)
 

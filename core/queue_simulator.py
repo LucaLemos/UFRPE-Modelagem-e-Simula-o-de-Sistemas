@@ -103,7 +103,7 @@ class QueueSimulator:
                     print(f"CPU {i+1} clicada - modo visualização apenas")
                     computer_clicked = True
                     break
-                
+            
             if not computer_clicked and self.generator.is_clicked(pos):
                 self.info_panel.select_component("generator")
                 print("Gerador clicado - modo visualização apenas")
@@ -112,12 +112,6 @@ class QueueSimulator:
             return
         
         # **MODO SANDBOX: Controles completos**
-        # Primeiro verifica se o botão de fechar foi clicado
-        if self.info_panel.is_close_button_clicked(pos):
-            self.info_panel.close_detailed_view()
-            print("Visualização detalhada fechada")
-            return
-        
         # Verifica se o botão de parar/iniciar foi clicado
         if self.info_panel.is_stop_button_clicked(pos):
             self._handle_stop_button_click()
@@ -353,7 +347,9 @@ class QueueSimulator:
         old_interval = self.current_interval_seconds
         self.current_interval_seconds = new_interval
         
-        message = f"🔥 CARGA AUMENTADA! Intervalo: {old_interval:.1f}s → {new_interval:.1f}s"
+        # Mensagem de debuff
+        reduction_percent = int(reduction * 100)
+        message = f"CARGA AUMENTADA! -{reduction_percent}% intervalo"
         self.event_messages.append((message, Colors.ORANGE))
         print(f"[EVENTO] {message}")
     
@@ -387,12 +383,13 @@ class QueueSimulator:
                     self._apply_upgrade_loss(upgrade_to_remove, current_level - 1)
                     
                     upgrade_names = {
-                        "upgrade_processing_speed": "Velocidade de Processamento",
-                        "upgrade_capacity": "Capacidade do Sistema", 
-                        "upgrade_speed": "Velocidade de Transporte"
+                        "upgrade_processing_speed": "Veloc. Processamento",
+                        "upgrade_capacity": "Capacidade Sistema", 
+                        "upgrade_speed": "Veloc. Transporte"
                     }
                     
-                    message = f"⚠️ UPGRADE PERDIDO! {upgrade_names[upgrade_to_remove]} nivel {current_level} → {current_level-1}"
+                    # Mensagem de debuff
+                    message = f"UPGRADE PERDIDO! {upgrade_names[upgrade_to_remove]} Nv.{current_level}→{current_level-1}"
                     self.event_messages.append((message, Colors.YELLOW))
                     print(f"[EVENTO] {message}")
                     break
@@ -404,27 +401,26 @@ class QueueSimulator:
         """Evento: Quebra de uma CPU comprada"""
         # Verificar quais CPUs estão disponíveis para quebrar (excluindo a CPU 1 inicial)
         available_cpus = [cpu for cpu in self.computers if cpu.computer_id > 1]
-        
+
         if available_cpus:
             # Escolher uma CPU aleatória para quebrar
             cpu_to_break = random.choice(available_cpus)
             cpu_id = cpu_to_break.computer_id
-            
+
             # Remover a CPU do sistema
             self.computers.remove(cpu_to_break)
-            
+
+            # CORREÇÃO: Atualizar o connection system com a nova lista
+            self.connection.update_computers_list(self.computers)
+
             # Marcar como não comprada na loja
             for item in self.shop_panel.shop_items:
                 if item["id"] == f"cpu_{cpu_id}":
                     item["purchased"] = False
                     break
-            
-            # Atualizar o sistema de conexão
-            self.connection.computers = self.computers
-            self.connection.load_balancer.computers = self.computers
-            self.connection._calculate_all_directions()
-            
-            message = f"💥 CPU {cpu_id} QUEBROU! Perdeu uma unidade de processamento"
+                
+            # Mensagem de debuff
+            message = f"CPU {cpu_id} QUEBROU! Perdeu processamento"
             self.event_messages.append((message, Colors.RED))
             print(f"[EVENTO] {message}")
         else:
@@ -491,15 +487,13 @@ class QueueSimulator:
         """Adiciona uma nova CPU ao sistema"""
         new_computer = Computer(computer_id, grid_position, color)
         self.computers.append(new_computer)
-        
-        # Atualizar o connection system com a nova CPU
-        self.connection.computers = self.computers
-        self.connection.load_balancer.computers = self.computers
-        self.connection._calculate_all_directions()
-        
+
+        # CORREÇÃO: Atualizar o connection system com a nova lista
+        self.connection.update_computers_list(self.computers)
+
         # Atualizar referências no info panel
         self.info_panel.set_component_references(self.computers, self.generator, self)
-        
+
         print(f"Nova CPU {computer_id} adicionada ao sistema!")
 
     def _add_score(self):
@@ -547,10 +541,6 @@ class QueueSimulator:
             self.health_points -= 1
             print(f"💔 Perdeu 1 ponto de vida! Vida restante: {self.health_points}/{MAX_HEALTH_POINTS}")
             
-            # Adicionar mensagem de evento
-            health_message = f"💔 Processo expirado! Vida: {self.health_points}/{MAX_HEALTH_POINTS}"
-            self.event_messages.append((health_message, Colors.RED))
-            
             # Verificar se o jogo acabou
             if self.health_points <= 0:
                 self._end_game()
@@ -565,8 +555,8 @@ class QueueSimulator:
         for computer in self.computers:
             computer.stop()
         
-        # Adicionar mensagem de fim de jogo
-        game_over_message = f"🎮 FIM DE JOGO! Pontuação: {self.score}"
+        # Mensagem de fim de jogo
+        game_over_message = f"FIM DE JOGO! Pontuação: {self.score}"
         self.event_messages.append((game_over_message, Colors.RED))
     
     def _cleanup_completed_processes(self) -> None:
@@ -665,15 +655,11 @@ class QueueSimulator:
         font_small = pygame.font.SysFont(None, 24)
         
         game_over_text = font_large.render("FIM DE JOGO", True, Colors.RED)
-        score_text = font_medium.render(f"Pontuação Final: {self.score}", True, Colors.WHITE)
         time_text = font_medium.render(f"Tempo: {int(self.game_time_elapsed)} segundos", True, Colors.WHITE)
-        instruction_text = font_small.render("Pressione ESC para voltar ao menu", True, Colors.YELLOW)
         
         # Centralizar textos
         screen.blit(game_over_text, (SCREEN_WIDTH//2 - game_over_text.get_width()//2, SCREEN_HEIGHT//2 - 100))
-        screen.blit(score_text, (SCREEN_WIDTH//2 - score_text.get_width()//2, SCREEN_HEIGHT//2))
-        screen.blit(time_text, (SCREEN_WIDTH//2 - time_text.get_width()//2, SCREEN_HEIGHT//2 + 50))
-        screen.blit(instruction_text, (SCREEN_WIDTH//2 - instruction_text.get_width()//2, SCREEN_HEIGHT//2 + 120))
+        screen.blit(time_text, (SCREEN_WIDTH//2 - time_text.get_width()//2, SCREEN_HEIGHT//2))
     
     def _draw_score_display(self, screen: pygame.Surface) -> None:
         """Desenha a pontuação no grid (0,0)"""
@@ -705,20 +691,20 @@ class QueueSimulator:
         screen.blit(mode_text, (score_x + score_width//2 - mode_text.get_width()//2, score_y + 55))
     
     def _draw_timer_display(self, screen: pygame.Surface) -> None:
-        """Desenha o timer no grid (4,0) - APENAS NO MODO JOGO"""
+        """Desenha o timer no grid (1,0) - APENAS NO MODO JOGO"""
         timer_x, timer_y, timer_width, timer_height = GridHelper.grid_to_pixels(
             GridPositions.TIMER_DISPLAY[0], 
             GridPositions.TIMER_DISPLAY[1], 
             1, 1
         )
         
-        # Fundo do timer
-        pygame.draw.rect(screen, Colors.DARK_GRAY, (timer_x, timer_y, timer_width, timer_height))
-        pygame.draw.rect(screen, Colors.WHITE, (timer_x, timer_y, timer_width, timer_height), 2)
+        # Fundo mais escuro para melhor contraste
+        pygame.draw.rect(screen, (40, 40, 50), (timer_x, timer_y, timer_width, timer_height), border_radius=6)
+        pygame.draw.rect(screen, Colors.CYAN, (timer_x, timer_y, timer_width, timer_height), 2, border_radius=6)
         
         # Texto do timer
-        font_large = pygame.font.SysFont(None, 34)
-        font_small = pygame.font.SysFont(None, 18)
+        font_large = pygame.font.SysFont("Arial", 28, bold=True)
+        font_small = pygame.font.SysFont("Arial", 16)
         
         # Título
         title_text = font_small.render("TEMPO", True, Colors.WHITE)
@@ -732,10 +718,10 @@ class QueueSimulator:
         time_display = font_large.render(time_text, True, Colors.CYAN)
         screen.blit(time_display, (timer_x + timer_width//2 - time_display.get_width()//2, timer_y + 30))
         
-        # Próximo evento (mostrar apenas se não há mensagem ativa)
+        # Indicador de próximo evento
         if not self.event_messages:
             next_event = 10 - (int(self.game_time_elapsed) % 10)
-            event_text = font_small.render(f"Prox: {next_event}s", True, Colors.ORANGE)
+            event_text = font_small.render(f"Próx: {next_event}s", True, Colors.ORANGE)
             screen.blit(event_text, (timer_x + timer_width//2 - event_text.get_width()//2, timer_y + 55))
         else:
             # Mostrar "EVENTO!" quando há mensagem ativa
@@ -750,63 +736,33 @@ class QueueSimulator:
         # Mostrar apenas a mensagem mais recente
         message, color = self.event_messages[0]
         
-        # Usar grids (2,0) até (4,0) - 3 células de largura
+        # Usar grids (2,0) até (4,0) - 3 células de largura, 1 de altura (fixa)
         message_x, message_y, message_width, message_height = GridHelper.grid_to_pixels(
             GridPositions.EVENT_DISPLAY[0],  # Grid 2,0
-            GridPositions.EVENT_DISPLAY[1],       # Linha 0
-            3, 1  # 3 células de largura, 1 de altura
+            GridPositions.EVENT_DISPLAY[1],  # Linha 0
+            3, 1  # 3 células de largura, 1 de altura FIXA
         )
         
-        font = pygame.font.SysFont(None, 24)
-        text_surface = font.render(message, True, color)
+        # Fonte para mensagens
+        font = pygame.font.SysFont("Arial", 20, bold=True)
         
-        # Centralizar texto na área dos 3 grids
-        text_x = message_x + (message_width - text_surface.get_width()) // 2
-        text_y = message_y + (message_height - text_surface.get_height()) // 2
+        # **ALTURA FIXA** - Não ajustar baseado no conteúdo
+        total_height = message_height
         
-        # Fundo semi-transparente para toda a área dos 3 grids
-        bg_rect = pygame.Rect(message_x, message_y, message_width, message_height)
+        # Fundo semi-transparente com borda colorida
+        bg_rect = pygame.Rect(message_x, message_y, message_width, total_height)
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-        s.fill((0, 0, 0, 180))  # Preto semi-transparente
+        s.fill((30, 30, 40, 230))  # Azul escuro semi-transparente
         screen.blit(s, bg_rect)
         
-        # Borda colorida ao redor dos 3 grids
-        pygame.draw.rect(screen, color, bg_rect, 3)
+        # Borda colorida ao redor
+        pygame.draw.rect(screen, color, bg_rect, 3, border_radius=8)
         
-        # Texto centralizado
+        # **SEM ÍCONES** - Apenas texto centralizado
+        text_surface = font.render(message, True, color)
+        text_x = message_x + (message_width - text_surface.get_width()) // 2
+        text_y = message_y + (total_height - text_surface.get_height()) // 2
         screen.blit(text_surface, (text_x, text_y))
-        
-        # Adicionar ícone baseado no tipo de evento
-        icon_x = message_x + 10
-        icon_y = message_y + message_height // 2
-        
-        if "CARGA" in message:
-            # Ícone de fogo para aumento de carga
-            pygame.draw.circle(screen, Colors.ORANGE, (icon_x, icon_y), 8)
-            pygame.draw.polygon(screen, Colors.YELLOW, [
-                (icon_x, icon_y - 12),
-                (icon_x - 6, icon_y - 3),
-                (icon_x - 3, icon_y - 3),
-                (icon_x - 8, icon_y + 6),
-                (icon_x, icon_y + 2),
-                (icon_x + 8, icon_y + 6),
-                (icon_x + 3, icon_y - 3),
-                (icon_x + 6, icon_y - 3)
-            ])
-        elif "UPGRADE" in message:
-            # Ícone de downgrade/seta para baixo
-            pygame.draw.rect(screen, Colors.YELLOW, (icon_x - 6, icon_y - 8, 12, 4))
-            pygame.draw.rect(screen, Colors.YELLOW, (icon_x - 2, icon_y - 12, 4, 8))
-            pygame.draw.polygon(screen, Colors.YELLOW, [
-                (icon_x, icon_y + 8),
-                (icon_x - 6, icon_y),
-                (icon_x + 6, icon_y)
-            ])
-        elif "CPU" in message:
-            # Ícone de CPU quebrada
-            pygame.draw.rect(screen, Colors.RED, (icon_x - 8, icon_y - 8, 16, 16), 2)
-            pygame.draw.line(screen, Colors.RED, (icon_x - 8, icon_y - 8), (icon_x + 8, icon_y + 8), 2)
-            pygame.draw.line(screen, Colors.RED, (icon_x + 8, icon_y - 8), (icon_x - 8, icon_y + 8), 2)
     
     def _draw_processing_process(self, screen: pygame.Surface, computer: Computer) -> None:
         """Desenha o processo atualmente em processamento na CPU"""

@@ -3,6 +3,7 @@ import sys
 from core.queue_simulator import QueueSimulator
 from core.main_menu import MainMenu
 from config import Colors, SCREEN_WIDTH, SCREEN_HEIGHT, FPS
+from utils.grid_helper import GridHelper
 
 class GameManager:
     def __init__(self):
@@ -127,7 +128,6 @@ class GameManager:
     def _draw_back_button(self):
         """Desenha botão para voltar ao menu no grid (9,0)"""
         # Usar GridHelper para posicionar no grid (9,0)
-        from utils.grid_helper import GridHelper
         back_x, back_y, back_width, back_height = GridHelper.grid_to_pixels(9, 0, 1, 1)
         
         back_button = pygame.Rect(back_x, back_y, back_width, back_height)
