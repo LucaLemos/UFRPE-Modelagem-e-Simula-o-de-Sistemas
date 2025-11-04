@@ -288,6 +288,15 @@ class QueueSimulator:
         
         # Atualizar sistema de conexão
         self.connection.update()
+        # filtra só processos em fila e converte a chave para proc.id
+        in_queue_map = {
+            pid: target
+            for pid, target in self.connection.process_targets.items()
+            for proc in self.processes
+            if proc.id == pid and proc.state in (ProcessState.PROCESSING, ProcessState.WAITING_CPU)
+            }
+        self.info_panel.set_process_targets(in_queue_map)
+
         
         # Verificar timeouts em todas as filas de CPU
         self._check_queue_timeouts()

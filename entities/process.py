@@ -38,6 +38,9 @@ class Process:
     def draw(self, screen: pygame.Surface) -> None:
         """Desenha o processo na tela"""
         # Círculo principal
+        if self.state in (ProcessState.PROCESSING, ProcessState.WAITING_CPU):
+            return
+
         pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), self.radius)
         pygame.draw.circle(screen, Colors.WHITE, (int(self.x), int(self.y)), self.radius, 2)
         

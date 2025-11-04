@@ -116,7 +116,7 @@ class Computer:
         # Processo atual
         if not self.is_idle and self.current_process and not self.is_stopped:
             process_text = font.render(f"P{self.current_process.id}", True, Colors.WHITE)
-            screen.blit(process_text, (self.x + self.width // 2 - 10, self.y + self.height // 2 + 15))
+            screen.blit(process_text, (self.x + self.width // 2 - 10, self.y + self.height // 2 + 20))
         
         # Tamanho da fila
         queue_text = font.render(f"Fila: {len(self.queue)}", True, Colors.WHITE)
