@@ -125,8 +125,12 @@ class GameManager:
         print("Retornando ao menu principal")
 
     def _draw_back_button(self):
-        """Desenha botão para voltar ao menu"""
-        back_button = pygame.Rect(SCREEN_WIDTH - 120, 20, 100, 40)
+        """Desenha botão para voltar ao menu no grid (9,0)"""
+        # Usar GridHelper para posicionar no grid (9,0)
+        from utils.grid_helper import GridHelper
+        back_x, back_y, back_width, back_height = GridHelper.grid_to_pixels(9, 0, 1, 1)
+        
+        back_button = pygame.Rect(back_x, back_y, back_width, back_height)
         mouse_pos = pygame.mouse.get_pos()
         is_hovered = back_button.collidepoint(mouse_pos)
         

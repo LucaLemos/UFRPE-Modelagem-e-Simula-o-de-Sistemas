@@ -68,8 +68,15 @@ class QueueSimulator:
         # Se o jogo acabou, apenas permitir voltar ao menu
         if self.game_over:
             return
-            
-        # Primeiro verificar se a loja foi clicada (permitido em ambos os modos)
+        
+        # **CORREÇÃO: Primeiro verificar se o botão de fechar do InfoPanel foi clicado**
+        # **ISSO DEVE FUNCIONAR EM AMBOS OS MODOS**
+        if self.info_panel.is_close_button_clicked(pos):
+            self.info_panel.close_detailed_view()
+            print("Visualização detalhada fechada")
+            return
+        
+        # Depois verificar se a loja foi clicada (permitido em ambos os modos)
         shop_item = self.shop_panel.is_clicked(pos)
         if shop_item:
             # Para upgrades infinitos, sempre permitir compra se tiver pontos suficientes
@@ -96,7 +103,7 @@ class QueueSimulator:
                     print(f"CPU {i+1} clicada - modo visualização apenas")
                     computer_clicked = True
                     break
-            
+                
             if not computer_clicked and self.generator.is_clicked(pos):
                 self.info_panel.select_component("generator")
                 print("Gerador clicado - modo visualização apenas")

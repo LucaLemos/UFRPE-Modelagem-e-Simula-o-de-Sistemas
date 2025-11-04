@@ -41,6 +41,7 @@ class GridPositions:
     TIMER_DISPLAY = (1, 0)
     EVENT_DISPLAY = (2, 0)
     HEALTH_BAR = (6, 0)
+    BACK_BUTTON = (9, 0) 
     
     GENERATOR = (1, 1)  
     COMPUTER_1 = (5, 1)  # CPU 1

@@ -532,7 +532,8 @@ class InfoPanel:
             restriction_text = warning_font.render(restriction, True, self.text_color)
             screen.blit(restriction_text, (right_column_center_x - 70, controls_start_y + 50 + i * 25))
         
-        # Apenas desenhar botão de fechar (sem outros controles)
+        # **CORREÇÃO: Botão de fechar deve funcionar no modo jogo**
+        # Desenhar botão de fechar normalmente
         close_button_color = self.close_button_hover_color if self.is_close_button_hovered else self.close_button_color
         pygame.draw.circle(screen, close_button_color, self.close_button_rect.center, self.close_button_size // 2)
         pygame.draw.circle(screen, self.text_color, self.close_button_rect.center, self.close_button_size // 2, 2)
