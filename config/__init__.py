@@ -43,7 +43,7 @@ class GridPositions:
     HEALTH_BAR = (6, 0)
     BACK_BUTTON = (9, 0) 
     
-    GENERATOR = (1, 1)  
+    GENERATOR = (1, 2)  
     COMPUTER_1 = (5, 1)  # CPU 1
     COMPUTER_2 = (5, 2)  # CPU 2
     COMPUTER_3 = (5, 3)  # CPU 3
