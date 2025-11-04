@@ -38,6 +38,10 @@ GENERATION_FREQUENCIES = [
 # Posições no Grid
 class GridPositions:
     SCORE_DISPLAY = (0, 0)
+    TIMER_DISPLAY = (1, 0)
+    EVENT_DISPLAY = (2, 0)
+    HEALTH_BAR = (6, 0)
+    
     GENERATOR = (1, 1)  
     COMPUTER_1 = (5, 1)  # CPU 1
     COMPUTER_2 = (5, 2)  # CPU 2
@@ -46,7 +50,7 @@ class GridPositions:
     COMPUTER_5 = (6, 2)  # Nova CPU 5  
     COMPUTER_6 = (6, 3)  # Nova CPU 6
     INFO_PANEL = (0, 4)
-    SHOP_PANEL = (10, 0)  # Novo painel da loja
+    SHOP_PANEL = (10, 0)
 
 # Tamanhos dos Elementos
 class ElementSizes:
@@ -54,6 +58,7 @@ class ElementSizes:
     GENERATOR = (1, 1)
     INFO_PANEL = (10, 4)
     SHOP_PANEL = (2, 8)
+    HEALTH_BAR = (3, 1)
 
 # Configurações de Processamento
 PROCESSING_TIME_MS = 2000  # 2 segundos
@@ -62,3 +67,4 @@ TRANSPORT_SPEED = 3.0
 
 # Cores para múltiplas CPUs
 CPU_COLORS = [Colors.RED, Colors.CYAN, Colors.PINK]  # Adicionada esta linha
+MAX_HEALTH_POINTS = 15

@@ -18,6 +18,10 @@ class LoadBalancer:
     
     def get_target_computer(self, process=None):
         """Retorna a CPU alvo para o processo"""
+        # CORREÇÃO: Verificar se há CPUs disponíveis
+        if not self.computers:
+            return None
+            
         if self.distribution_strategy == "round_robin":
             return self._round_robin()
         elif self.distribution_strategy == "least_loaded":
@@ -27,12 +31,20 @@ class LoadBalancer:
     
     def _round_robin(self):
         """Distribuição round-robin entre CPUs"""
+        # CORREÇÃO: Verificar se há CPUs disponíveis
+        if not self.computers:
+            return None
+            
         computer = self.computers[self.current_index]
         self.current_index = (self.current_index + 1) % len(self.computers)
         return computer
     
     def _least_loaded(self):
         """Retorna a CPU com menor carga (fila + processamento)"""
+        # CORREÇÃO: Verificar se há CPUs disponíveis
+        if not self.computers:
+            return None
+            
         return min(self.computers, key=lambda cpu: 
                   cpu.queue_length + (0 if cpu.is_idle else 1))
     
@@ -91,9 +103,18 @@ class ConnectionSystem:
     
     def add_process(self, process: Process) -> bool:
         """Adiciona um processo ao sistema se houver capacidade"""
+        # CORREÇÃO: Verificar se há CPUs disponíveis antes de adicionar
+        if not self.computers:
+            return False
+            
         if self.total_processes < self.max_capacity:
             # Escolhe a CPU alvo usando o balanceador de carga
             target_computer = self.load_balancer.get_target_computer(process)
+            
+            # CORREÇÃO: Verificar se encontrou uma CPU válida
+            if target_computer is None:
+                return False
+                
             self.process_targets[process.id] = target_computer
             
             process.x, process.y = self.generator.get_center()
@@ -115,7 +136,8 @@ class ConnectionSystem:
     @property
     def has_capacity(self) -> bool:
         """Verifica se há capacidade disponível"""
-        return self.total_processes < self.max_capacity
+        # CORREÇÃO: Também verificar se há CPUs disponíveis
+        return len(self.computers) > 0 and self.total_processes < self.max_capacity
     
     def update(self) -> None:
         """Atualiza todo o fluxo do sistema"""
@@ -126,7 +148,8 @@ class ConnectionSystem:
     
     def _move_from_input_to_transit(self) -> None:
         """Move processos da fila de entrada para trânsito"""
-        if self.input_queue and len(self.transit_processes) < 8:  # Aumentado para múltiplas CPUs
+        # CORREÇÃO: Verificar se há CPUs disponíveis
+        if self.input_queue and len(self.transit_processes) < 8 and self.computers:
             process = self.input_queue.pop(0)
             process.state = ProcessState.IN_TRANSIT
             self.transit_processes.append(process)
@@ -238,6 +261,17 @@ class ConnectionSystem:
     def _draw_capacity_indicator(self, screen: pygame.Surface) -> None:
         """Desenha indicador de capacidade"""
         font = pygame.font.SysFont(None, 20)
+        
+        # CORREÇÃO: Mensagem diferente quando não há CPUs
+        if not self.computers:
+            capacity_text = font.render("SISTEMA SEM CPUS!", True, Colors.RED)
+            screen.blit(capacity_text, (self.generator.get_center()[0] - 50, self.generator.get_center()[1] - 40))
+            
+            # Mostrar instrução para comprar CPUs
+            instruction_text = font.render("Compre CPUs na loja!", True, Colors.YELLOW)
+            screen.blit(instruction_text, (self.generator.get_center()[0] - 50, self.generator.get_center()[1] - 20))
+            return
+        
         capacity_text = font.render(f"Capacidade: {self.total_processes}/{self.max_capacity}", True, Colors.WHITE)
         screen.blit(capacity_text, (self.generator.get_center()[0] - 50, self.generator.get_center()[1] - 40))
         
@@ -261,9 +295,12 @@ class ConnectionSystem:
         load_y = bar_y + 15
         for computer_name, info in load_info.items():
             status = "PARADA" if info['is_stopped'] else "ATIVA"
-            load_text = font.render(f"{computer_name}: {info['queue_length']} na fila ({status})", 
-                                  True, Colors.WHITE)
+            status_color = Colors.RED if info['is_stopped'] else Colors.GREEN
+            load_text = font.render(f"{computer_name}: {info['queue_length']} na fila", True, Colors.WHITE)
+            status_text = font.render(f"({status})", True, status_color)
+            
             screen.blit(load_text, (bar_x, load_y))
+            screen.blit(status_text, (bar_x + 120, load_y))
             load_y += 15
     
     def _draw_all_processes(self, screen: pygame.Surface) -> None:
