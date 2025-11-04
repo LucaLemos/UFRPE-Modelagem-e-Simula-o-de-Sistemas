@@ -160,8 +160,46 @@ class InfoPanel:
             (f"Total em filas: {total_queue}", self.text_color),
             (f"Concluidos: {concluidos}", self.success_color),
             (f"Expirados: {timed_out_processes}", self.error_color),
-            (f"Capacidade: {connection.total_processes}/{connection.max_capacity}", self.text_color)
+            (f"Capacidade: {connection.total_processes}/{connection.max_capacity}", self.text_color),
+            ("", self.text_color),
+
         ]
+
+        # Calculate M/M/c metrics
+        if current_interval_seconds and current_interval_seconds > 0:
+            Lambda = 1 / current_interval_seconds  # Taxa de chegada
+            avg_processing_time = sum(cpu.processing_time_ms for cpu in computers) / len(computers) if computers else 0
+            if avg_processing_time > 0:
+                Mu = 1000 / avg_processing_time  # Taxa de serviço (convertendo ms para segundos)
+                c = active_cpus  # Número de servidores
+                
+                if c > 0:
+                    mmc_metrics = self.calculate_mmc_metrics(Lambda, Mu, c)
+                    
+                    if mmc_metrics:
+                        self.info_lines.extend([
+                            ("=== MODELO M/M/c ===", self.accent_color),
+                            (f"Lambda (λ): {Lambda:.3f}/s", self.text_color),
+                            (f"Mu (μ): {Mu:.3f}/s", self.text_color),
+                            (f"Servidores (c): {c}", self.text_color),
+                            (f"Utilizacao (ρ): {mmc_metrics['rho']:.3f}", 
+                             self.error_color if mmc_metrics['rho'] > 0.9 else self.warning_color if mmc_metrics['rho'] > 0.7 else self.success_color),
+                            ("", self.text_color),
+                            ("=== METRICAS TEORICAS ===", self.accent_color),
+                            (f"L (sist.): {mmc_metrics['L']:.2f}", self.text_color),
+                            (f"Lq (fila): {mmc_metrics['Lq']:.2f}", self.text_color),
+                            (f"W (sist.): {mmc_metrics['W']:.2f}s", self.text_color),
+                            (f"Wq (fila): {mmc_metrics['Wq']:.2f}s", self.text_color),
+                            (f"P0 (vazio): {mmc_metrics['P0']*100:.3f}%", self.text_color),
+                            (f"P(espera): {mmc_metrics['Customer_Delay']*100:.3f}%", self.text_color),
+                        ])
+                    else:
+                        self.info_lines.extend([
+                            ("=== MODELO M/M/c ===", self.accent_color),
+                            ("Sistema instavel!", self.error_color),
+                            (f"λ/cμ = {Lambda/(c*Mu):.2f} >= 1", self.error_color),
+                        ])
+        
         
         # Middle column - Statistics and performance
         self.middle_info_lines = [
@@ -183,44 +221,6 @@ class InfoPanel:
             (f"Criados: {connection.generator.next_process_id - 1}", self.text_color),
             (f"Transito: {len(connection.transit_processes)}", self.text_color)
         ]
-
-        # Right column - M/M/c metrics
-        self.end_info_lines = []
-        
-        # Calculate M/M/c metrics
-        if current_interval_seconds and current_interval_seconds > 0:
-            Lambda = 1 / current_interval_seconds  # Taxa de chegada
-            avg_processing_time = sum(cpu.processing_time_ms for cpu in computers) / len(computers) if computers else 0
-            if avg_processing_time > 0:
-                Mu = 1000 / avg_processing_time  # Taxa de serviço (convertendo ms para segundos)
-                c = active_cpus  # Número de servidores
-                
-                if c > 0:
-                    mmc_metrics = self.calculate_mmc_metrics(Lambda, Mu, c)
-                    
-                    if mmc_metrics:
-                        self.end_info_lines = [
-                            ("=== MODELO M/M/c ===", self.accent_color),
-                            (f"Lambda (λ): {Lambda:.3f}/s", self.text_color),
-                            (f"Mu (μ): {Mu:.3f}/s", self.text_color),
-                            (f"Servidores (c): {c}", self.text_color),
-                            (f"Utilizacao (ρ): {mmc_metrics['rho']:.3f}", 
-                             self.error_color if mmc_metrics['rho'] > 0.9 else self.warning_color if mmc_metrics['rho'] > 0.7 else self.success_color),
-                            ("", self.text_color),
-                            ("=== METRICAS TEORICAS ===", self.accent_color),
-                            (f"L (sist.): {mmc_metrics['L']:.2f}", self.text_color),
-                            (f"Lq (fila): {mmc_metrics['Lq']:.2f}", self.text_color),
-                            (f"W (sist.): {mmc_metrics['W']:.2f}s", self.text_color),
-                            (f"Wq (fila): {mmc_metrics['Wq']:.2f}s", self.text_color),
-                            (f"P0 (vazio): {mmc_metrics['P0']:.3f}", self.text_color),
-                            (f"P(espera): {mmc_metrics['Customer_Delay']:.3f}", self.text_color),
-                        ]
-                    else:
-                        self.end_info_lines = [
-                            ("=== MODELO M/M/c ===", self.accent_color),
-                            ("Sistema instavel!", self.error_color),
-                            (f"λ/cμ = {Lambda/(c*Mu):.2f} >= 1", self.error_color),
-                        ]
 
     def _show_computer_info(self, computer, connection, max_queue_time_seconds, timed_out_processes):
         """Mostra informações detalhadas de uma CPU específica"""
@@ -539,7 +539,7 @@ class InfoPanel:
         for i, (line, color) in enumerate(self.info_lines):
             text = font.render(line, True, color)
             # Check if text fits in the panel
-            if start_y + i * line_height < self.y + self.height - 70:
+            if start_y + i * line_height < self.y + self.height - 50:
                 screen.blit(text, (left_column_x, start_y + i * line_height))
         
         # Draw middle column (additional info) if available
@@ -561,15 +561,6 @@ class InfoPanel:
                 if start_y + i * line_height < self.y + self.height - 70:
                     screen.blit(text, (middle_column_x, start_y + i * line_height))
         
-        # Draw right column (end info) if available
-        if hasattr(self, 'end_info_lines') and self.end_info_lines:
-            for i, (line, color) in enumerate(self.end_info_lines):
-                text = font.render(line, True, color)
-                # Check if text fits in the panel
-                if start_y + i * line_height < self.y + self.height - 70:
-                    screen.blit(text, (right_column_x, start_y + i * line_height))
-            self.end_info_lines = []  # Clear after drawing to avoid duplication
-            
 
         # Desenhar botão de fechar apenas quando estiver em visualização detalhada
         if self.selected_component is not None:
