@@ -239,13 +239,13 @@ class ConnectionSystem:
         """Desenha indicador de capacidade"""
         font = pygame.font.SysFont(None, 20)
         capacity_text = font.render(f"Capacidade: {self.total_processes}/{self.max_capacity}", True, Colors.WHITE)
-        screen.blit(capacity_text, (self.generator.get_center()[0] - 50, self.generator.get_center()[1] - 40))
+        screen.blit(capacity_text, (self.generator.get_center()[0] - 50, self.generator.get_center()[1] - 60))
         
         # Barra de progresso
         bar_width = 100
         bar_height = 8
         bar_x = self.generator.get_center()[0] - 50
-        bar_y = self.generator.get_center()[1] - 25
+        bar_y = self.generator.get_center()[1] - 40
         
         pygame.draw.rect(screen, Colors.DARK_GRAY, (bar_x, bar_y, bar_width, bar_height))
         
@@ -258,7 +258,7 @@ class ConnectionSystem:
         
         # Informações de carga das CPUs
         load_info = self.load_balancer.get_system_load()
-        load_y = bar_y + 15
+        load_y = bar_y + 100
         for computer_name, info in load_info.items():
             status = "PARADA" if info['is_stopped'] else "ATIVA"
             load_text = font.render(f"{computer_name}: {info['queue_length']} na fila ({status})", 

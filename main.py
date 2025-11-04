@@ -58,15 +58,31 @@ class GameManager:
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self._return_to_menu()
                 else:
                     self.simulator.handle_key_event(event)
+
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Botão esquerdo
+                    # --- NOVO: deixar o painel tratar o clique do "X" primeiro ---
+                    panel = getattr(self.simulator, 'info_panel', None)
+                    if panel:
+                        action = getattr(panel, 'handle_click', lambda *_: None)(event.pos)
+                        if action == "close":
+                            # Evita que o mesmo clique selecione outra coisa na UI
+                            continue
+                    # Depois, delega para a simulação normal
                     self.simulator.handle_click(event.pos)
+
             elif event.type == pygame.MOUSEMOTION:
+                # --- NOVO: atualizar hover do painel sempre, independente do modo ---
+                panel = getattr(self.simulator, 'info_panel', None)
+                if panel and hasattr(panel, 'update_button_hover'):
+                    panel.update_button_hover(event.pos)
+                # Depois, delega para a simulação normal
                 self.simulator.handle_mouse_motion(event.pos)
 
         self.simulator.update()

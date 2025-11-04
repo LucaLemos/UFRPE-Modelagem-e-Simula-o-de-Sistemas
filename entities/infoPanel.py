@@ -84,8 +84,13 @@ class InfoPanel:
             self.y + self.title_bar_height,
             self.width,
             self.height - self.title_bar_height - 60
-        )
 
+        )
+        
+        self.process_targets = {}
+        self.process_targets = {}
+        # nomes fixos para o overview do canto direito
+        self.cpu_names = ["CPU_1", "CPU_2", "CPU_3", "CPU_4", "CPU_5", "CPU_6"]
         # Column widths
         self.column_width = self.width // 3
         self.column_padding = 10
@@ -266,6 +271,30 @@ class InfoPanel:
             (f"Picos: {int(system_load * 10)}", self.text_color),
             (efficiency_text, self.text_color)
         ]
+
+
+    def set_process_targets(self, process_targets: dict):
+        """
+        Define/atualiza o mapeamento {process_id: target_computer_obj}.
+        target_computer_obj precisa ter atributo .name (CPU_1..CPU_6).
+        """
+        self.process_targets = process_targets or {}
+
+    def _cpu_process_map(self):
+        """
+        Retorna { 'CPU_1': [ids...], ..., 'CPU_6': [ids...] } a partir de self.process_targets.
+        Ignora destinos com name fora da lista esperada.
+        """
+        cpu_map = {name: [] for name in self.cpu_names}
+        for pid, target in self.process_targets.items():
+            name = getattr(target, "name", None)
+            if name in cpu_map:
+                cpu_map[name].append(pid)
+        # ordena por id para visual consistente
+        for name in cpu_map:
+            cpu_map[name].sort()
+        return cpu_map
+
 
     def _get_color_name(self, color):
         """Retorna o nome da cor baseado na tupla RGB"""
@@ -512,6 +541,60 @@ class InfoPanel:
                 # **MODO SANDBOX: Mostrar controles completos**
                 self._draw_sandbox_controls(screen, right_column_center_x, controls_start_y)
 
+
+                # === OVERVIEW DE PROCESSOS POR CPU (somente na visão geral) ===
+        if self.selected_component is None:
+            # caixa do canto direito
+            overview_padding_x = 10
+            overview_padding_y = 10
+            box_x = right_column_x
+            box_y = self.y + self.title_bar_height + 8
+            box_w = self.column_width - 15
+            box_h = self.height - self.title_bar_height - 70
+
+            # fundo e borda
+            pygame.draw.rect(screen, self.secondary_color, (box_x, box_y, box_w, box_h), border_radius=6)
+            pygame.draw.rect(screen, self.accent_color, (box_x, box_y, box_w, box_h), 2, border_radius=6)
+
+            # título
+            header = "=== PROCESSOS POR CPU ==="
+            header_surface = font.render(header, True, self.accent_color)
+            screen.blit(header_surface, (box_x + overview_padding_x, box_y + overview_padding_y))
+
+            # lista CPU_1..CPU_6
+            line_y = box_y + overview_padding_y + 24
+            line_gap = 22  # altura entre linhas
+
+            cpu_map = self._cpu_process_map()
+            for name in self.cpu_names:
+                pids = cpu_map.get(name, [])
+                # formata como "P1, P4, P23" (ou "—" se vazio)
+                if pids:
+                    pid_list_text = ", ".join(f"P{pid}" for pid in pids)
+                else:
+                    pid_list_text = "—"
+
+                # texto final da linha
+                line_text = f"{name}: {pid_list_text}"
+
+                # clipping simples para caber dentro da coluna (se quiser evitar overflow)
+                max_px = box_w - 2 * overview_padding_x
+                rendered = small_font.render(line_text, True, self.text_color)
+                # se estourar, corta e coloca "..."
+                if rendered.get_width() > max_px:
+                    # corta progressivamente
+                    base = f"{name}: "
+                    rest = pid_list_text
+                    ellipsis = "..."
+                    # binário / linear simples
+                    while rest and small_font.render(base + rest + ellipsis, True, self.text_color).get_width() > max_px:
+                        rest = rest[:-1]
+                    line_text = base + (rest + ellipsis if rest else ellipsis)
+                    rendered = small_font.render(line_text, True, self.text_color)
+
+                screen.blit(rendered, (box_x + overview_padding_x, line_y))
+                line_y += line_gap
+
     def _draw_game_mode_restrictions(self, screen, right_column_center_x, controls_start_y):
         """Desenha informações de restrição para o modo jogo"""
         info_font = pygame.font.SysFont("Arial", 16)
@@ -663,3 +746,32 @@ class InfoPanel:
         
         if computers and len(computers) > 0:
             self.processing_time_input_text = f"{computers[0].processing_time_ms/1000:.2f}"
+
+    def handle_click(self, pos):
+        """Gerencia cliques do painel (sempre, independente do modo)."""
+        # o X sempre fecha a visão detalhada
+        if self.is_close_button_clicked(pos):
+         self.close_detailed_view()
+         return "close"
+
+         # Controles só existem no modo sandbox e quando há componente selecionado
+        if self.selected_component is None:
+            return None
+
+        # inputs/botões (sandbox)
+        if self.is_stop_button_clicked(pos):
+            return "stop"
+
+        if self.is_interval_input_clicked(pos):
+            self.activate_interval_input()
+            return "interval"
+
+        if self.is_processing_time_input_clicked(pos):
+            self.activate_processing_time_input()
+            return "processing"
+
+        if self.is_max_queue_time_input_clicked(pos):
+            self.activate_max_queue_time_input()
+            return "max_queue"
+
+        return None
